@@ -146,3 +146,9 @@ elif mode == "Opponent Pitcher Scout":
           )
         else:
           st.info("Log 2-strike counts to see putaway data.")
+            st.sidebar.markdown("---")
+if st.sidebar.button("🗑️ Clear Game Data / Reset"):
+    # Deletes all rows from the pitch_logs table
+    supabase.table("pitch_logs").delete().neq("id", 0).execute()
+    st.sidebar.success("Game data cleared!")
+    st.rerun()
