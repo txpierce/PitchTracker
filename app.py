@@ -26,12 +26,10 @@ mode = st.sidebar.radio("Select Mode", [
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Configurations")
 
-# 1. Our Lineup (Used when charting Opponent Pitchers / On-Deck Cheat Sheet)
 default_our_lineup = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
 our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=default_our_lineup, height=120)
 our_batters_list = [b.strip() for b in our_lineup_input.split("\n") if b.strip()]
 
-# 2. Opponent Lineup (Used when tracking Our Pitchers)
 default_opp_lineup = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
 opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=default_opp_lineup, height=120)
 opp_batters_list = [b.strip() for b in opp_lineup_input.split("\n") if b.strip()]
@@ -50,6 +48,32 @@ if "opp_scout_strikes" not in st.session_state:
     st.session_state.opp_scout_strikes = 0
 if "opp_scout_batter_index" not in st.session_state:
     st.session_state.opp_scout_batter_index = 0
+
+# Helper function for Whiff% and CSW% calculations
+def display_advanced_pitching_metrics(p_df):
+    total_pitches = len(p_df)
+    if total_pitches > 0:
+        called_strikes = len(p_df[p_df["result"] == "Called Strike"])
+        swinging_strikes = len(p_df[p_df["result"] == "Swinging Strike"])
+        fouls = len(p_df[p_df["result"] == "Foul"])
+        in_play = len(p_df[p_df["result"] == "In Play"])
+        
+        # Total Swings = Swinging Strikes + Fouls + In Play
+        total_swings = swinging_strikes + fouls + in_play
+        
+        # Whiff Rate = Swinging Strikes / Total Swings
+        whiff_rate = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+        
+        # CSW% = (Called Strikes + Swinging Strikes) / Total Pitches
+        csw_pct = ((called_strikes + swinging_strikes) / total_pitches * 100)
+        
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            st.metric("Whiff Rate (Swing & Miss %)", f"{whiff_rate:.1f}%")
+        with col_m2:
+            st.metric("CSW% (Called Strike + Whiff %)", f"{csw_pct:.1f}%")
+    else:
+        st.info("No pitches recorded to calculate metrics.")
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -80,7 +104,6 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
-    # Manual Opponent Hitter Override for Our Pitcher Tracker
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -167,7 +190,6 @@ if mode == "Our Pitcher Tracker":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
-    # Undo Last Pitch Button
     if st.button("↩️ Undo Last Logged Pitch (Our Tracker)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Our Pitcher Tracker").order("timestamp", desc=True).limit(1).execute()
@@ -192,6 +214,9 @@ if mode == "Our Pitcher Tracker":
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
+            
+            # Display Whiff & CSW% Metrics
+            display_advanced_pitching_metrics(pitcher_df)
             
             if len(pitcher_df) > 0:
                 col_a, col_b = st.columns(2)
@@ -257,6 +282,9 @@ elif mode == "Our Pitching Coach Dashboard":
             coach_pitcher_df = our_df[our_df["pitcher"] == coach_opp]
             
             st.metric("Total Pitches Thrown", len(coach_pitcher_df))
+            
+            # Display Whiff & CSW% Metrics
+            display_advanced_pitching_metrics(coach_pitcher_df)
             
             col_x, col_y = st.columns(2)
             with col_x:
@@ -351,7 +379,6 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
 
-    # Opponent Scout Manual Hitter Override (uses Our Lineup)
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if our_batters_list:
@@ -359,7 +386,7 @@ elif mode == "Opponent Pitcher Scout":
             st.session_state.opp_scout_batter_index = 0
             
         manual_override_our = st.sidebar.selectbox(
-            "Override Current Our Hitter", 
+            "Override Current Hitter", 
             our_batters_list, 
             index=st.session_state.opp_scout_batter_index,
             key="opp_scout_hitter_override"
@@ -439,7 +466,6 @@ elif mode == "Opponent Pitcher Scout":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
-    # Undo Last Pitch Button for Opponent Scout
     if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Opponent Pitcher Scout").order("timestamp", desc=True).limit(1).execute()
@@ -466,6 +492,9 @@ elif mode == "Opponent Pitcher Scout":
             opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
+            
+            # Display Whiff & CSW% Metrics
+            display_advanced_pitching_metrics(opp_pitcher_df)
             
             col_x, col_y = st.columns(2)
             with col_x:
@@ -523,6 +552,9 @@ else:
             deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
             
             st.metric("Total Pitches Charted", len(deck_pitcher_df))
+            
+            # Display Whiff & CSW% Metrics
+            display_advanced_pitching_metrics(deck_pitcher_df)
             
             col_x, col_y = st.columns(2)
             with col_x:
@@ -583,7 +615,7 @@ else:
             else:
                 st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
-            st.info("No opponent pitches charted yet.")
+            st.info("No opponent pitcher scout data logged yet.")
     else:
         st.info("No pitch data logged yet today.")
         
