@@ -3,14 +3,14 @@ import pandas as pd
 from supabase import create_client
 
 # Page Config
-st.set_page_config(page_title="South Texas Sliders - Pitch Tracker", page_icon="⚾", layout="centered")
+st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
 
 # Initialize Supabase Client using Streamlit Secrets
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-st.title("⚾ South Texas Sliders Pitch Tracker")
+st.title("⚾ TX_Pierce Pitch Tracker")
 
 # Sidebar Mode Selection
 st.sidebar.header("Navigation")
@@ -145,3 +145,4 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.rerun()
     except Exception as e:
         st.sidebar.error(f"Error clearing data: {e}")
+        
