@@ -167,6 +167,68 @@ if mode == "Our Pitcher Tracker":
         except Exception as e:
             st.error(f"Error undoing pitch: {e}")
 
+    st.markdown("---")
+    st.subheader("📈 Live Outing Stats & Advanced Analytics")
+    
+    if not df.empty and "pitcher" in df.columns:
+        our_df = df[df["mode"] == "Our Pitcher Tracker"]
+        if not our_df.empty:
+            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique(), key="view_our_pitcher")
+            pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
+            
+            st.metric("Total Pitches Thrown", len(pitcher_df))
+            
+            if len(pitcher_df) > 0:
+                col_a, col_b = st.columns(2)
+                
+                with col_a:
+                    st.write("### Overall Pitch Mix")
+                    mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                    st.dataframe(mix.round(1).astype(str) + '%')
+                    
+                with col_b:
+                    st.write("### 🎯 0-0 Pitch Usage")
+                    zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
+                    if not zero_zero.empty:
+                        zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
+                        st.dataframe(zz_mix.round(1).astype(str) + '%')
+                    else:
+                        st.info("No 0-0 pitches logged yet.")
+
+                st.write("### 🚨 2-Strike Putaway Tendencies (0-2, 1-2, 2-2, 3-2)")
+                two_strike_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                if not two_strike_df.empty:
+                    ts_mix = two_strike_df["pitch_type"].value_counts(normalize=True) * 100
+                    st.dataframe(ts_mix.round(1).astype(str) + '%')
+                else:
+                    st.info("No 2-strike counts logged yet.")
+
+                st.write("### 📊 Pitch Type % Breakdown by Count")
+                if not pitcher_df.empty:
+                    count_pitch_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index") * 100
+                    st.dataframe(count_pitch_table.round(1).astype(str) + '%')
+                else:
+                    st.info("No pitch data logged yet.")
+
+                st.write("### 📊 Batted Ball Profile & Pitch Breakdown")
+                in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
+                if not in_play_df.empty:
+                    c_col1, c_col2 = st.columns(2)
+                    with c_col1:
+                        st.write("**Contact Types (% by Pitch Type)**")
+                        contact_table = pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index") * 100
+                        st.dataframe(contact_table.round(1).astype(str) + '%')
+                    with c_col2:
+                        st.write("**Hit Outcomes (% by Pitch Type)**")
+                        hit_table = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index") * 100
+                        st.dataframe(hit_table.round(1).astype(str) + '%')
+                else:
+                    st.info("No balls in play logged yet.")
+        else:
+            st.info("No pitches logged for our pitchers yet.")
+    else:
+        st.info("No pitch data logged yet today.")
+
 elif mode == "Our Pitching Coach Dashboard":
     st.header("📋 Our Pitching Coach Dashboard")
     st.write("Real-time data and matchup breakdown for our pitching staff.")
@@ -199,6 +261,13 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.dataframe((coach_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
             else:
                 st.info("No 2-strike counts logged yet.")
+
+            st.write("### 📊 Pitch Type % Breakdown by Count")
+            if not coach_pitcher_df.empty:
+                coach_count_table = pd.crosstab(coach_pitcher_df["count"], coach_pitcher_df["pitch_type"], normalize="index") * 100
+                st.dataframe(coach_count_table.round(1).astype(str) + '%')
+            else:
+                st.info("No pitch data logged yet.")
 
             if "batter" in coach_pitcher_df.columns:
                 st.write("### 🧢 Opponent Batter Breakdown vs This Pitcher")
