@@ -36,7 +36,6 @@ df = load_data()
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
     
-    # Persistent & Reliever Pitcher Management in Sidebar
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Active Pitcher Control")
     
@@ -65,14 +64,18 @@ if mode == "Our Pitcher Tracker":
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
         with col3:
-            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"])
+            contact_type = st.selectbox("Contact Type", ["None", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"])
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"])
+            hit_type = st.selectbox("Hit Outcome", ["None", "Out", "Single", "Double", "Triple", "Home Run"])
             
         submitted = st.form_submit_button("Log Pitch")
         
         if submitted:
             try:
+                # Only save contact/hit types if "In Play" is selected, otherwise save "N/A"
+                final_contact = contact_type if result == "In Play" else "N/A"
+                final_hit = hit_type if result == "In Play" else "N/A"
+                
                 supabase.table("pitch_logs").insert({
                     "mode": mode,
                     "pitcher": current_our_pitcher,
@@ -80,8 +83,8 @@ if mode == "Our Pitcher Tracker":
                     "count": count,
                     "pitch_type": pitch_type,
                     "result": result,
-                    "contact_type": contact_type if result == "In Play" else "N/A",
-                    "hit_type": hit_type if result == "In Play" else "N/A"
+                    "contact_type": final_contact,
+                    "hit_type": final_hit
                 }).execute()
                 st.success(f"Logged {pitch_type} for {current_our_pitcher}!")
                 st.rerun()
@@ -125,15 +128,16 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 st.write("### 📊 Batted Ball Profile (In Play)")
-                in_play_df = pitcher_df[pitcher_df["result"] == "In Play"]
+                # Flexible filter to catch 'In Play' or legacy variants
+                in_play_df = pitcher_df[pitcher_df["result"].str.contains("In Play", case=False, na=False)]
                 if not in_play_df.empty:
                     c_col1, c_col2 = st.columns(2)
                     with c_col1:
                         st.write("**Contact Types**")
-                        st.dataframe(in_play_df["contact_type"].value_counts())
+                        st.dataframe(in_play_df[in_play_df["contact_type"] != "None"]["contact_type"].value_counts())
                     with c_col2:
                         st.write("**Hit Outcomes**")
-                        st.dataframe(in_play_df["hit_type"].value_counts())
+                        st.dataframe(in_play_df[in_play_df["hit_type"] != "None"]["hit_type"].value_counts())
                 else:
                     st.info("No balls in play logged yet.")
         else:
@@ -175,14 +179,17 @@ else:
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
         with col3:
-            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="opp_contact")
+            contact_type = st.selectbox("Contact Type", ["None", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="opp_contact")
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="opp_hit")
+            hit_type = st.selectbox("Hit Outcome", ["None", "Out", "Single", "Double", "Triple", "Home Run"], key="opp_hit")
             
         submitted = st.form_submit_button("Log Opponent Pitch")
         
         if submitted:
             try:
+                final_contact = contact_type if result == "In Play" else "N/A"
+                final_hit = hit_type if result == "In Play" else "N/A"
+                
                 supabase.table("pitch_logs").insert({
                     "mode": mode,
                     "pitcher": current_opp_pitcher,
@@ -190,8 +197,8 @@ else:
                     "count": count,
                     "pitch_type": pitch_type,
                     "result": result,
-                    "contact_type": contact_type if result == "In Play" else "N/A",
-                    "hit_type": hit_type if result == "In Play" else "N/A"
+                    "contact_type": final_contact,
+                    "hit_type": final_hit
                 }).execute()
                 st.success(f"Logged pitch to {current_batter}!")
                 st.rerun()
@@ -230,7 +237,6 @@ else:
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            # Hitter Breakdown
             if "batter" in opp_pitcher_df.columns:
                 st.write("### 🧢 Batter Breakdown vs This Pitcher")
                 valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
