@@ -127,15 +127,16 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 st.write("### 📊 Batted Ball Profile (In Play)")
-                in_play_df = pitcher_df[pitcher_df["result"] == "In Play"]
+                # Robust filter checking for "In Play" regardless of casing/spaces
+                in_play_df = pitcher_df[pitcher_df["result"].astype(str).str.strip().str.lower() == "in play"]
                 if not in_play_df.empty:
                     c_col1, c_col2 = st.columns(2)
                     with c_col1:
                         st.write("**Contact Types**")
-                        st.dataframe(in_play_df[in_play_df["contact_type"] != "N/A"]["contact_type"].value_counts())
+                        st.dataframe(in_play_df["contact_type"].value_counts())
                     with c_col2:
                         st.write("**Hit Outcomes**")
-                        st.dataframe(in_play_df[in_play_df["hit_type"] != "N/A"]["hit_type"].value_counts())
+                        st.dataframe(in_play_df["hit_type"].value_counts())
                 else:
                     st.info("No balls in play logged yet.")
         else:
