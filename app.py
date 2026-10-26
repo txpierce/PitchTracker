@@ -235,22 +235,7 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            if "batter" in opp_pitcher_df.columns:
-                st.write("### 🧢 Batter Breakdown vs This Pitcher")
-                valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
-                if valid_batters:
-                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters, key="view_batter_matchup")
-                    batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
-                    st.metric(f"Total Pitches Seen by {selected_batter_view}", len(batter_vs_df))
-                    
-                    if not batter_vs_df.empty:
-                        st.write("**Pitch Type % Breakdown by Count**")
-                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
-                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                    else:
-                        st.info("No pitches logged for this hitter yet.")
-                else:
-                    st.info("No individual batter matchups logged yet.")
+            # (Batter Breakdown section removed from here as requested)
 
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
