@@ -51,28 +51,27 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
-    with st.form("pitch_form", clear_on_submit=True):
+    with st.form("our_pitch_form", clear_on_submit=False):
         st.write(f"**Logging pitches for:** `{current_our_pitcher}`")
         col1, col2 = st.columns(2)
         with col1:
-            count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"])
-            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"])
+            count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="our_count")
+            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="our_pitch_type")
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"])
+            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="our_result")
             
         st.markdown("---")
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
         with col3:
-            contact_type = st.selectbox("Contact Type", ["None", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"])
+            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="our_contact")
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["None", "Out", "Single", "Double", "Triple", "Home Run"])
+            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="our_hit")
             
         submitted = st.form_submit_button("Log Pitch")
         
         if submitted:
             try:
-                # Only save contact/hit types if "In Play" is selected, otherwise save "N/A"
                 final_contact = contact_type if result == "In Play" else "N/A"
                 final_hit = hit_type if result == "In Play" else "N/A"
                 
@@ -86,7 +85,7 @@ if mode == "Our Pitcher Tracker":
                     "contact_type": final_contact,
                     "hit_type": final_hit
                 }).execute()
-                st.success(f"Logged {pitch_type} for {current_our_pitcher}!")
+                st.success(f"Logged {pitch_type} ({result}) for {current_our_pitcher}!")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
@@ -97,7 +96,7 @@ if mode == "Our Pitcher Tracker":
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
         if not our_df.empty:
-            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique())
+            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique(), key="view_our_pitcher")
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
@@ -128,16 +127,15 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 st.write("### 📊 Batted Ball Profile (In Play)")
-                # Flexible filter to catch 'In Play' or legacy variants
-                in_play_df = pitcher_df[pitcher_df["result"].str.contains("In Play", case=False, na=False)]
+                in_play_df = pitcher_df[pitcher_df["result"] == "In Play"]
                 if not in_play_df.empty:
                     c_col1, c_col2 = st.columns(2)
                     with c_col1:
                         st.write("**Contact Types**")
-                        st.dataframe(in_play_df[in_play_df["contact_type"] != "None"]["contact_type"].value_counts())
+                        st.dataframe(in_play_df[in_play_df["contact_type"] != "N/A"]["contact_type"].value_counts())
                     with c_col2:
                         st.write("**Hit Outcomes**")
-                        st.dataframe(in_play_df[in_play_df["hit_type"] != "None"]["hit_type"].value_counts())
+                        st.dataframe(in_play_df[in_play_df["hit_type"] != "N/A"]["hit_type"].value_counts())
                 else:
                     st.info("No balls in play logged yet.")
         else:
@@ -156,32 +154,32 @@ else:
         existing_opps = list(df[df["mode"] == mode]["pitcher"].unique())
         
     opp_options = existing_opps + ["➕ Add New Opponent Pitcher"]
-    selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=0 if existing_opps else len(opp_options)-1)
+    selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=0 if existing_opps else len(opp_options)-1, key="opp_select_side")
     
     if selected_opp_option == "➕ Add New Opponent Pitcher":
         current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever")
     else:
         current_opp_pitcher = selected_opp_option
     
-    with st.form("scout_form", clear_on_submit=True):
+    with st.form("scout_form", clear_on_submit=False):
         st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
         
-        current_batter = st.selectbox("Current Hitter At Bat", batters_list)
+        current_batter = st.selectbox("Current Hitter At Bat", batters_list, key="scout_batter")
         
         col1, col2 = st.columns(2)
         with col1:
-            count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="opp_count")
-            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="opp_type")
+            count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="scout_count")
+            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="scout_type")
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="opp_result")
+            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="scout_result")
             
         st.markdown("---")
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
         with col3:
-            contact_type = st.selectbox("Contact Type", ["None", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="opp_contact")
+            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="scout_contact")
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["None", "Out", "Single", "Double", "Triple", "Home Run"], key="opp_hit")
+            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="scout_hit")
             
         submitted = st.form_submit_button("Log Opponent Pitch")
         
@@ -213,7 +211,7 @@ else:
         opp_df = opp_df.sort_values(by="timestamp", ascending=True)
         
         if not opp_df.empty:
-            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique())
+            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_pitcher")
             opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
@@ -241,7 +239,7 @@ else:
                 st.write("### 🧢 Batter Breakdown vs This Pitcher")
                 valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
                 if valid_batters:
-                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters)
+                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters, key="view_batter_matchup")
                     batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
                     st.metric(f"Pitches Seen by {selected_batter_view}", len(batter_vs_df))
                     st.dataframe(batter_vs_df[["count", "pitch_type", "result", "contact_type", "hit_type"]])
@@ -256,7 +254,7 @@ else:
             fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
             
             if not fb_calls.empty:
-                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique())
+                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique(), key="seq_trigger")
                 triggered_seq = fb_calls[fb_calls["result"] == selected_trigger]
                 
                 if not triggered_seq.empty and "next_pitch" in triggered_seq.columns:
