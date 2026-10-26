@@ -18,8 +18,8 @@ mode = st.sidebar.radio("Select Mode", ["Our Pitcher Tracker", "Opponent Pitcher
 
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Setup")
-default_lineup = "Kai Anderson\nJames Doyle\nJackson Hodge\nJake Irwin\nFinley Kayes\nDrake Olson\nCade Pilcik\nSebastian Rojas\nCarson Skuddy\nGael Zambrano"
-lineup_input = st.sidebar.text_area("Our Batting Lineup (One per line)", value=default_lineup, height=150)
+default_lineup = "Batter 1\nBatter 2\nBatter 3\nBatter 4\nBatter 5\nBatter 6\nBatter 7\nBatter 8\nBatter 9"
+lineup_input = st.sidebar.text_area("Batting Lineup (One per line)", value=default_lineup, height=150)
 batters_list = [b.strip() for b in lineup_input.split("\n") if b.strip()]
 
 # Fetch existing pitch logs from Supabase
@@ -36,11 +36,23 @@ df = load_data()
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
     
-    # Persistent Pitcher Selection in Sidebar or Top
+    # Persistent & Reliever Pitcher Management in Sidebar
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Active Pitcher Control")
-    current_our_pitcher = st.sidebar.text_input("Active Pitcher Name", value="Starting Pitcher")
     
+    # Get existing pitchers logged so far
+    existing_pitchers = []
+    if not df.empty and "pitcher" in df.columns:
+        existing_pitchers = list(df[df["mode"] == mode]["pitcher"].unique())
+    
+    pitcher_options = existing_pitchers + ["➕ Add New Reliever/Pitcher"]
+    selected_pitcher_option = st.sidebar.selectbox("Current Pitcher", pitcher_options, index=0 if existing_pitchers else len(pitcher_options)-1)
+    
+    if selected_pitcher_option == "➕ Add New Reliever/Pitcher":
+        current_our_pitcher = st.sidebar.text_input("Enter Reliever Name", value="Reliever 1")
+    else:
+        current_our_pitcher = selected_pitcher_option
+
     with st.form("pitch_form", clear_on_submit=True):
         st.write(f"**Logging pitches for:** `{current_our_pitcher}`")
         col1, col2 = st.columns(2)
@@ -83,8 +95,8 @@ if mode == "Our Pitcher Tracker":
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
         if not our_df.empty:
-            selected_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique())
-            pitcher_df = our_df[our_df["pitcher"] == selected_pitcher]
+            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique())
+            pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
             
@@ -135,7 +147,18 @@ else:
     
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Active Opponent Pitcher")
-    current_opp_pitcher = st.sidebar.text_input("Opponent Pitcher Name / #", value="Opponent Starter")
+    
+    existing_opps = []
+    if not df.empty and "mode" in df.columns:
+        existing_opps = list(df[df["mode"] == mode]["pitcher"].unique())
+        
+    opp_options = existing_opps + ["➕ Add New Opponent Pitcher"]
+    selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=0 if existing_opps else len(opp_options)-1)
+    
+    if selected_opp_option == "➕ Add New Opponent Pitcher":
+        current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever")
+    else:
+        current_opp_pitcher = selected_opp_option
     
     with st.form("scout_form", clear_on_submit=True):
         st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
@@ -184,7 +207,7 @@ else:
         opp_df = opp_df.sort_values(by="timestamp", ascending=True)
         
         if not opp_df.empty:
-            selected_opp = st.selectbox("Select Opponent Pitcher", opp_df["pitcher"].unique())
+            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique())
             opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
@@ -222,35 +245,4 @@ else:
 
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
-            opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
-            opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
-            
-            fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
-            
-            if not fb_calls.empty:
-                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique())
-                triggered_seq = fb_calls[fb_calls["result"] == selected_trigger]
-                
-                if not triggered_seq.empty and "next_pitch" in triggered_seq.columns:
-                    st.write(f"**Follow-up pitch after Fastball -> {selected_trigger}:**")
-                    seq_mix = triggered_seq["next_pitch"].value_counts(normalize=True) * 100
-                    st.dataframe(seq_mix.round(1).astype(str) + '%')
-                else:
-                    st.info("Not enough sequential data logged yet for this pattern.")
-            else:
-                st.info("Log more fastball outcomes to unlock sequence tracking.")
-        else:
-            st.info("No opponent pitches charted yet.")
-    else:
-        st.info("No pitch data logged yet.")
-
-# Sidebar Reset Button
-st.sidebar.markdown("---")
-st.sidebar.subheader("Game Management")
-if st.sidebar.button("🗑️ Clear Game Data / Result"):
-    try:
-        supabase.table("pitch_logs").delete().neq("id", 0).execute()
-        st.sidebar.success("Game data cleared successfully!")
-        st.rerun()
-    except Exception as e:
-        st.sidebar.error(f"Error clearing data: {e}")
+            opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift
