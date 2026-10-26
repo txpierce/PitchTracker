@@ -23,6 +23,14 @@ default_lineup = "Batter 1\nBatter 2\nBatter 3\nBatter 4\nBatter 5\nBatter 6\nBa
 lineup_input = st.sidebar.text_area("Batting Lineup (One per line)", value=default_lineup, height=150)
 batters_list = [b.strip() for b in lineup_input.split("\n") if b.strip()]
 
+# Initialize Session State for Opponent Scout Count & Lineup Index
+if "opp_balls" not in st.session_state:
+    st.session_state.opp_balls = 0
+if "opp_strikes" not in st.session_state:
+    st.session_state.opp_strikes = 0
+if "batter_index" not in st.session_state:
+    st.session_state.batter_index = 0
+
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
 def load_data():
@@ -163,14 +171,20 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
     
+    # Ensure lineup index is within bounds
+    if st.session_state.batter_index >= len(batters_list):
+        st.session_state.batter_index = 0
+        
+    current_batter = batters_list[st.session_state.batter_index]
+    current_count_str = f"{st.session_state.opp_balls}-{st.session_state.opp_strikes}"
+    
+    st.info(f"⚾ **Current Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
+
     with st.form("scout_form", clear_on_submit=False):
         st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
         
-        current_batter = st.selectbox("Current Hitter At Bat", batters_list, key="scout_batter")
-        
         col1, col2 = st.columns(2)
         with col1:
-            count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="scout_count")
             pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="scout_type")
         with col2:
             result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="scout_result")
@@ -183,23 +197,52 @@ elif mode == "Opponent Pitcher Scout":
         with col4:
             hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="scout_hit")
             
-        submitted = st.form_submit_button("Log Opponent Pitch")
-        
-        if submitted:
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            submitted = st.form_submit_button("Log Pitch & Advance Count")
+        with btn_col2:
+            complete_at_bat = st.form_submit_button("Complete At-Bat & Next Hitter ➔")
+            
+        if submitted or complete_at_bat:
             try:
+                # Log the pitch to Supabase
                 supabase.table("pitch_logs").insert({
                     "mode": "Opponent Pitcher Scout",
                     "pitcher": current_opp_pitcher,
                     "batter": current_batter,
-                    "count": count,
+                    "count": current_count_str,
                     "pitch_type": pitch_type,
                     "result": result,
-                    "contact_type": contact_type,
-                    "hit_type": hit_type
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
                 }).execute()
                 
+                if complete_at_bat:
+                    # Reset count to 0-0 and advance to next hitter in lineup
+                    st.session_state.opp_balls = 0
+                    st.session_state.opp_strikes = 0
+                    st.session_state.batter_index = (st.session_state.batter_index + 1) % len(batters_list)
+                    st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
+                else:
+                    # Automatically update count based on result
+                    if result in ["Called Strike", "Swinging Strike"]:
+                        if st.session_state.opp_strikes < 2:
+                            st.session_state.opp_strikes += 1
+                    elif result == "Ball":
+                        if st.session_state.opp_balls < 3:
+                            st.session_state.opp_balls += 1
+                    elif result == "Foul":
+                        if st.session_state.opp_strikes < 2:
+                            st.session_state.opp_strikes += 1
+                    elif result in ["In Play", "Hit By Pitch"]:
+                        # Ends the at-bat automatically on contact or HBP
+                        st.session_state.opp_balls = 0
+                        st.session_state.opp_strikes = 0
+                        st.session_state.batter_index = (st.session_state.batter_index + 1) % len(batters_list)
+                        
+                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_balls}-{st.session_state.opp_strikes}")
+                
                 st.cache_data.clear()
-                st.success(f"Logged pitch to {current_batter}!")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
@@ -236,6 +279,23 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
+            if "batter" in opp_pitcher_df.columns:
+                st.write("### 🧢 Batter Breakdown vs This Pitcher")
+                valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
+                if valid_batters:
+                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters, key="view_batter_matchup")
+                    batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
+                    st.metric(f"Total Pitches Seen by {selected_batter_view}", len(batter_vs_df))
+                    
+                    if not batter_vs_df.empty:
+                        st.write("**Pitch Type % Breakdown by Count**")
+                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
+                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
+                    else:
+                        st.info("No pitches logged for this hitter yet.")
+                else:
+                    st.info("No individual batter matchups logged yet.")
+
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
@@ -264,7 +324,6 @@ else:
     st.header("🧢 Hitter On-Deck Cheat Sheet")
     st.write("Dedicated view for hitters to review full opponent pitcher scouting and count breakdowns[cite: 5].")
     
-    # Auto-refresh control for the third device
     auto_refresh = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False)
     
     if not df.empty and "mode" in df.columns:
@@ -338,7 +397,6 @@ else:
     else:
         st.info("No pitch data logged yet today.")
         
-    # Trigger auto-refresh loop if checked
     if auto_refresh:
         time.sleep(5)
         st.cache_data.clear()
@@ -350,6 +408,9 @@ st.sidebar.subheader("Game Management")
 if st.sidebar.button("🗑️ Clear Game Data / Reset"):
     try:
         supabase.table("pitch_logs").delete().neq("id", 0).execute()
+        st.session_state.opp_balls = 0
+        st.session_state.opp_strikes = 0
+        st.session_state.batter_index = 0
         st.sidebar.success("Game data cleared successfully!")
         st.rerun()
     except Exception as e:
