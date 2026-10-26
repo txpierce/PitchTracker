@@ -26,10 +26,12 @@ mode = st.sidebar.radio("Select Mode", [
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Configurations")
 
+# 1. Our Lineup (Used when charting Opponent Pitchers / On-Deck Cheat Sheet)
 default_our_lineup = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
 our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=default_our_lineup, height=120)
 our_batters_list = [b.strip() for b in our_lineup_input.split("\n") if b.strip()]
 
+# 2. Opponent Lineup (Used when tracking Our Pitchers)
 default_opp_lineup = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
 opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=default_opp_lineup, height=120)
 opp_batters_list = [b.strip() for b in opp_lineup_input.split("\n") if b.strip()]
@@ -48,32 +50,6 @@ if "opp_scout_strikes" not in st.session_state:
     st.session_state.opp_scout_strikes = 0
 if "opp_scout_batter_index" not in st.session_state:
     st.session_state.opp_scout_batter_index = 0
-
-# Helper function for Whiff% and CSW% calculations
-def display_advanced_pitching_metrics(p_df):
-    total_pitches = len(p_df)
-    if total_pitches > 0:
-        called_strikes = len(p_df[p_df["result"] == "Called Strike"])
-        swinging_strikes = len(p_df[p_df["result"] == "Swinging Strike"])
-        fouls = len(p_df[p_df["result"] == "Foul"])
-        in_play = len(p_df[p_df["result"] == "In Play"])
-        
-        # Total Swings = Swinging Strikes + Fouls + In Play
-        total_swings = swinging_strikes + fouls + in_play
-        
-        # Whiff Rate = Swinging Strikes / Total Swings
-        whiff_rate = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-        
-        # CSW% = (Called Strikes + Swinging Strikes) / Total Pitches
-        csw_pct = ((called_strikes + swinging_strikes) / total_pitches * 100)
-        
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Whiff Rate (Swing & Miss %)", f"{whiff_rate:.1f}%")
-        with col_m2:
-            st.metric("CSW% (Called Strike + Whiff %)", f"{csw_pct:.1f}%")
-    else:
-        st.info("No pitches recorded to calculate metrics.")
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -104,6 +80,7 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
+    # Manual Opponent Hitter Override for Our Pitcher Tracker
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -134,7 +111,16 @@ if mode == "Our Pitcher Tracker":
         with col1:
             pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="our_pitch_type")
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="our_result")
+            result = st.selectbox("Result", [
+                "Called Strike", 
+                "Swinging Strike", 
+                "Chase Swing & Miss", 
+                "Chase Contact / Foul", 
+                "Ball", 
+                "Foul", 
+                "In Play", 
+                "Hit By Pitch"
+            ], key="our_result")
             
         st.markdown("---")
         st.write("**If Ball In Play:**")
@@ -169,13 +155,13 @@ if mode == "Our Pitcher Tracker":
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
-                    if result in ["Called Strike", "Swinging Strike"]:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
                         if st.session_state.our_pitcher_strikes < 2:
                             st.session_state.our_pitcher_strikes += 1
                     elif result == "Ball":
                         if st.session_state.our_pitcher_balls < 3:
                             st.session_state.our_pitcher_balls += 1
-                    elif result == "Foul":
+                    elif result in ["Foul", "Chase Contact / Foul"]:
                         if st.session_state.our_pitcher_strikes < 2:
                             st.session_state.our_pitcher_strikes += 1
                     elif result in ["In Play", "Hit By Pitch"]:
@@ -190,6 +176,7 @@ if mode == "Our Pitcher Tracker":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
+    # Undo Last Pitch Button
     if st.button("↩️ Undo Last Logged Pitch (Our Tracker)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Our Pitcher Tracker").order("timestamp", desc=True).limit(1).execute()
@@ -214,9 +201,6 @@ if mode == "Our Pitcher Tracker":
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
-            
-            # Display Whiff & CSW% Metrics
-            display_advanced_pitching_metrics(pitcher_df)
             
             if len(pitcher_df) > 0:
                 col_a, col_b = st.columns(2)
@@ -243,12 +227,31 @@ if mode == "Our Pitcher Tracker":
                 else:
                     st.info("No 2-strike counts logged yet.")
 
+                st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+                metrics_rows = []
+                for p_type in pitcher_df["pitch_type"].unique():
+                    p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
+                    total_p = len(p_sub)
+                    called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                    swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                    total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                    
+                    cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                    whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                    
+                    metrics_rows.append({
+                        "Pitch Type": p_type,
+                        "Total Thrown": total_p,
+                        "Called Strike %": f"{cs_pct:.1f}%",
+                        "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                        "Chase Count": chase_count
+                    })
+                st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+
                 st.write("### 📊 Pitch Type % Breakdown by Count")
-                if not pitcher_df.empty:
-                    count_pitch_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index") * 100
-                    st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                else:
-                    st.info("No pitch data logged yet.")
+                count_pitch_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index") * 100
+                st.dataframe(count_pitch_table.round(1).astype(str) + '%')
 
                 st.write("### 📊 Batted Ball Profile & Pitch Breakdown")
                 in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
@@ -283,9 +286,6 @@ elif mode == "Our Pitching Coach Dashboard":
             
             st.metric("Total Pitches Thrown", len(coach_pitcher_df))
             
-            # Display Whiff & CSW% Metrics
-            display_advanced_pitching_metrics(coach_pitcher_df)
-            
             col_x, col_y = st.columns(2)
             with col_x:
                 st.write("### Overall Pitch Mix")
@@ -305,12 +305,31 @@ elif mode == "Our Pitching Coach Dashboard":
             else:
                 st.info("No 2-strike counts logged yet.")
 
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+            metrics_rows = []
+            for p_type in coach_pitcher_df["pitch_type"].unique():
+                p_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                
+                metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+
             st.write("### 📊 Pitch Type % Breakdown by Count")
-            if not coach_pitcher_df.empty:
-                coach_count_table = pd.crosstab(coach_pitcher_df["count"], coach_pitcher_df["pitch_type"], normalize="index") * 100
-                st.dataframe(coach_count_table.round(1).astype(str) + '%')
-            else:
-                st.info("No pitch data logged yet.")
+            coach_count_table = pd.crosstab(coach_pitcher_df["count"], coach_pitcher_df["pitch_type"], normalize="index") * 100
+            st.dataframe(coach_count_table.round(1).astype(str) + '%')
 
             if "batter" in coach_pitcher_df.columns:
                 st.write("### 🧢 Opponent Batter Breakdown vs This Pitcher")
@@ -329,15 +348,13 @@ elif mode == "Our Pitching Coach Dashboard":
                         st.info("No pitches logged for this hitter yet.")
                 else:
                     st.info("No individual batter matchups logged yet.")
-            else:
-                st.info("Batter tracking column not found.")
 
             st.write("### 🔄 Sequential Pattern Recognition")
             coach_seq_df = coach_pitcher_df.copy()
             coach_seq_df["next_pitch"] = coach_seq_df["pitch_type"].shift(-1)
             coach_seq_df["next_result"] = coach_seq_df["result"].shift(-1)
             
-            coach_fb_calls = coach_seq_df[(coach_seq_df["pitch_type"] == "Fastball") & (coach_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
+            coach_fb_calls = coach_seq_df[(coach_seq_df["pitch_type"] == "Fastball") & (coach_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
             
             if not coach_fb_calls.empty:
                 coach_selected_trigger = st.selectbox("Select Fastball Previous Outcome", coach_fb_calls["result"].unique(), key="coach_seq_trigger")
@@ -379,6 +396,7 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
 
+    # Opponent Scout Manual Hitter Override (uses Our Lineup)
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if our_batters_list:
@@ -386,7 +404,7 @@ elif mode == "Opponent Pitcher Scout":
             st.session_state.opp_scout_batter_index = 0
             
         manual_override_our = st.sidebar.selectbox(
-            "Override Current Hitter", 
+            "Override Current Our Hitter", 
             our_batters_list, 
             index=st.session_state.opp_scout_batter_index,
             key="opp_scout_hitter_override"
@@ -410,7 +428,16 @@ elif mode == "Opponent Pitcher Scout":
         with col1:
             pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="scout_type")
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="scout_result")
+            result = st.selectbox("Result", [
+                "Called Strike", 
+                "Swinging Strike", 
+                "Chase Swing & Miss", 
+                "Chase Contact / Foul", 
+                "Ball", 
+                "Foul", 
+                "In Play", 
+                "Hit By Pitch"
+            ], key="scout_result")
             
         st.markdown("---")
         st.write("**If Ball In Play:**")
@@ -445,13 +472,13 @@ elif mode == "Opponent Pitcher Scout":
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
-                    if result in ["Called Strike", "Swinging Strike"]:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
                         if st.session_state.opp_scout_strikes < 2:
                             st.session_state.opp_scout_strikes += 1
                     elif result == "Ball":
                         if st.session_state.opp_scout_balls < 3:
                             st.session_state.opp_scout_balls += 1
-                    elif result == "Foul":
+                    elif result in ["Foul", "Chase Contact / Foul"]:
                         if st.session_state.opp_scout_strikes < 2:
                             st.session_state.opp_scout_strikes += 1
                     elif result in ["In Play", "Hit By Pitch"]:
@@ -466,6 +493,7 @@ elif mode == "Opponent Pitcher Scout":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
+    # Undo Last Pitch Button for Opponent Scout
     if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Opponent Pitcher Scout").order("timestamp", desc=True).limit(1).execute()
@@ -493,9 +521,6 @@ elif mode == "Opponent Pitcher Scout":
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
             
-            # Display Whiff & CSW% Metrics
-            display_advanced_pitching_metrics(opp_pitcher_df)
-            
             col_x, col_y = st.columns(2)
             with col_x:
                 st.write("### Overall Pitch Mix")
@@ -515,12 +540,34 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+            metrics_rows = []
+            for p_type in opp_pitcher_df["pitch_type"].unique():
+                p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                
+                metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
             opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
             
-            fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
+            fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
             
             if not fb_calls.empty:
                 selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique(), key="seq_trigger")
@@ -541,7 +588,7 @@ elif mode == "Opponent Pitcher Scout":
 
 else:
     st.header("🧢 Hitter On-Deck Cheat Sheet")
-    st.write("Dedicated view for hitters to review full opponent pitcher scouting and count breakdowns[cite: 5].")
+    st.write("Dedicated view for hitters to review full opponent pitcher scouting and count breakdowns.")
     
     auto_refresh = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False)
     
@@ -552,9 +599,6 @@ else:
             deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
             
             st.metric("Total Pitches Charted", len(deck_pitcher_df))
-            
-            # Display Whiff & CSW% Metrics
-            display_advanced_pitching_metrics(deck_pitcher_df)
             
             col_x, col_y = st.columns(2)
             with col_x:
@@ -574,6 +618,28 @@ else:
                 st.dataframe((deck_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
             else:
                 st.info("No 2-strike counts logged yet.")
+
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+            metrics_rows = []
+            for p_type in deck_pitcher_df["pitch_type"].unique():
+                p_sub = deck_pitcher_df[deck_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                
+                metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
 
             if "batter" in deck_pitcher_df.columns:
                 st.write("### 🧢 Batter Breakdown vs This Pitcher")
@@ -600,7 +666,7 @@ else:
             deck_seq_df["next_pitch"] = deck_seq_df["pitch_type"].shift(-1)
             deck_seq_df["next_result"] = deck_seq_df["result"].shift(-1)
             
-            deck_fb_calls = deck_seq_df[(deck_seq_df["pitch_type"] == "Fastball") & (deck_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
+            deck_fb_calls = deck_seq_df[(deck_seq_df["pitch_type"] == "Fastball") & (deck_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
             
             if not deck_fb_calls.empty:
                 deck_selected_trigger = st.selectbox("Select Fastball Previous Outcome", deck_fb_calls["result"].unique(), key="deck_seq_trigger")
@@ -615,7 +681,7 @@ else:
             else:
                 st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
-            st.info("No opponent pitcher scout data logged yet.")
+            st.info("No opponent pitches charted yet.")
     else:
         st.info("No pitch data logged yet today.")
         
