@@ -127,8 +127,8 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 st.write("### 📊 Batted Ball Profile (In Play)")
-                # Robust filter checking for "In Play" regardless of casing/spaces
-                in_play_df = pitcher_df[pitcher_df["result"].astype(str).str.strip().str.lower() == "in play"]
+                # Bulletproof check: looks for any row where contact_type was recorded
+                in_play_df = pitcher_df[(pitcher_df["contact_type"].notnull()) & (pitcher_df["contact_type"] != "N/A")]
                 if not in_play_df.empty:
                     c_col1, c_col2 = st.columns(2)
                     with c_col1:
@@ -253,31 +253,3 @@ else:
             opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
             
             fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
-            
-            if not fb_calls.empty:
-                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique(), key="seq_trigger")
-                triggered_seq = fb_calls[fb_calls["result"] == selected_trigger]
-                
-                if not triggered_seq.empty and "next_pitch" in triggered_seq.columns:
-                    st.write(f"**Follow-up pitch after Fastball -> {selected_trigger}:**")
-                    seq_mix = triggered_seq["next_pitch"].value_counts(normalize=True) * 100
-                    st.dataframe(seq_mix.round(1).astype(str) + '%')
-                else:
-                    st.info("Not enough sequential data logged yet for this pattern.")
-            else:
-                st.info("Log more fastball outcomes to unlock sequence tracking.")
-        else:
-            st.info("No opponent pitches charted yet.")
-    else:
-        st.info("No pitch data logged yet.")
-
-# Sidebar Reset Button
-st.sidebar.markdown("---")
-st.sidebar.subheader("Game Management")
-if st.sidebar.button("🗑️ Clear Game Data / Reset"):
-    try:
-        supabase.table("pitch_logs").delete().neq("id", 0).execute()
-        st.sidebar.success("Game data cleared successfully!")
-        st.rerun()
-    except Exception as e:
-        st.sidebar.error(f"Error clearing data: {e}")
