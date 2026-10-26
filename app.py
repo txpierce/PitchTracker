@@ -13,7 +13,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("⚾ TX_Pierce Pitch Tracker")
 
-# Sidebar Mode Selection & Lineup Setup
+# Sidebar Mode Selection
 st.sidebar.header("Navigation")
 mode = st.sidebar.radio("Select Mode", [
     "Our Pitcher Tracker", 
@@ -22,19 +22,34 @@ mode = st.sidebar.radio("Select Mode", [
     "Hitter On-Deck Cheat Sheet"
 ])
 
+# --- DUAL LINEUP SETUP ---
 st.sidebar.markdown("---")
-st.sidebar.header("📋 Opponent Lineup Setup")
-default_lineup = "Batter 1\nBatter 2\nBatter 3\nBatter 4\nBatter 5\nBatter 6\nBatter 7\nBatter 8\nBatter 9"
-lineup_input = st.sidebar.text_area("Opponent Batting Lineup (One per line)", value=default_lineup, height=150)
-batters_list = [b.strip() for b in lineup_input.split("\n") if b.strip()]
+st.sidebar.header("📋 Lineup Configurations")
 
-# Initialize Session State for Count & Lineup Index (For Our Pitcher Tracker)
-if "our_balls" not in st.session_state:
-    st.session_state.our_balls = 0
-if "our_strikes" not in st.session_state:
-    st.session_state.our_strikes = 0
-if "our_batter_index" not in st.session_state:
-    st.session_state.our_batter_index = 0
+# 1. Our Lineup (Used when charting Opponent Pitchers / On-Deck Cheat Sheet)
+default_our_lineup = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
+our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=default_our_lineup, height=120)
+our_batters_list = [b.strip() for b in our_lineup_input.split("\n") if b.strip()]
+
+# 2. Opponent Lineup (Used when tracking Our Pitchers)
+default_opp_lineup = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
+opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=default_opp_lineup, height=120)
+opp_batters_list = [b.strip() for b in opp_lineup_input.split("\n") if b.strip()]
+
+# Initialize Session State for Counts & Lineup Indices Separately
+if "our_pitcher_balls" not in st.session_state:
+    st.session_state.our_pitcher_balls = 0
+if "our_pitcher_strikes" not in st.session_state:
+    st.session_state.our_pitcher_strikes = 0
+if "our_pitcher_batter_index" not in st.session_state:
+    st.session_state.our_pitcher_batter_index = 0
+
+if "opp_scout_balls" not in st.session_state:
+    st.session_state.opp_scout_balls = 0
+if "opp_scout_strikes" not in st.session_state:
+    st.session_state.opp_scout_strikes = 0
+if "opp_scout_batter_index" not in st.session_state:
+    st.session_state.opp_scout_batter_index = 0
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -65,30 +80,30 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
-    # Manual Hitter Override in Sidebar for scorekeeper corrections
+    # Manual Opponent Hitter Override for Our Pitcher Tracker
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
-    if batters_list:
-        if st.session_state.our_batter_index >= len(batters_list):
-            st.session_state.our_batter_index = 0
+    if opp_batters_list:
+        if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
+            st.session_state.our_pitcher_batter_index = 0
             
-        manual_override_batter = st.sidebar.selectbox(
+        manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
-            batters_list, 
-            index=st.session_state.our_batter_index,
-            key="our_manual_hitter_override"
+            opp_batters_list, 
+            index=st.session_state.our_pitcher_batter_index,
+            key="our_mode_hitter_override"
         )
         
-        new_override_index = batters_list.index(manual_override_batter)
-        if new_override_index != st.session_state.our_batter_index:
-            st.session_state.our_batter_index = new_override_index
-            st.session_state.our_balls = 0
-            st.session_state.our_strikes = 0
+        new_override_index = opp_batters_list.index(manual_override_opp)
+        if new_override_index != st.session_state.our_pitcher_batter_index:
+            st.session_state.our_pitcher_batter_index = new_override_index
+            st.session_state.our_pitcher_balls = 0
+            st.session_state.our_pitcher_strikes = 0
 
-    current_batter = batters_list[st.session_state.our_batter_index] if batters_list else "Batter 1"
-    current_count_str = f"{st.session_state.our_balls}-{st.session_state.our_strikes}"
+    current_batter = opp_batters_list[st.session_state.our_pitcher_batter_index] if opp_batters_list else "Opponent Batter 1"
+    current_count_str = f"{st.session_state.our_pitcher_balls}-{st.session_state.our_pitcher_strikes}"
     
-    st.info(f"⚾ **Current Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
+    st.info(f"⚾ **Facing Opponent Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
 
     with st.form("our_pitch_form", clear_on_submit=False):
         st.write(f"**Logging pitches for our pitcher:** `{current_our_pitcher}`")
@@ -126,26 +141,26 @@ if mode == "Our Pitcher Tracker":
                 }).execute()
                 
                 if complete_at_bat:
-                    st.session_state.our_balls = 0
-                    st.session_state.our_strikes = 0
-                    st.session_state.our_batter_index = (st.session_state.our_batter_index + 1) % len(batters_list)
+                    st.session_state.our_pitcher_balls = 0
+                    st.session_state.our_pitcher_strikes = 0
+                    st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike"]:
-                        if st.session_state.our_strikes < 2:
-                            st.session_state.our_strikes += 1
+                        if st.session_state.our_pitcher_strikes < 2:
+                            st.session_state.our_pitcher_strikes += 1
                     elif result == "Ball":
-                        if st.session_state.our_balls < 3:
-                            st.session_state.our_balls += 1
+                        if st.session_state.our_pitcher_balls < 3:
+                            st.session_state.our_pitcher_balls += 1
                     elif result == "Foul":
-                        if st.session_state.our_strikes < 2:
-                            st.session_state.our_strikes += 1
+                        if st.session_state.our_pitcher_strikes < 2:
+                            st.session_state.our_pitcher_strikes += 1
                     elif result in ["In Play", "Hit By Pitch"]:
-                        st.session_state.our_balls = 0
-                        st.session_state.our_strikes = 0
-                        st.session_state.our_batter_index = (st.session_state.our_batter_index + 1) % len(batters_list)
+                        st.session_state.our_pitcher_balls = 0
+                        st.session_state.our_pitcher_strikes = 0
+                        st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                         
-                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_balls}-{st.session_state.our_strikes}")
+                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_pitcher_balls}-{st.session_state.our_pitcher_strikes}")
                 
                 st.cache_data.clear()
                 st.rerun()
@@ -336,30 +351,30 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
 
-    # Opponent Scout Manual Hitter Override
+    # Opponent Scout Manual Hitter Override (uses Our Lineup)
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
-    if batters_list:
-        if st.session_state.our_batter_index >= len(batters_list):
-            st.session_state.our_batter_index = 0
+    if our_batters_list:
+        if st.session_state.opp_scout_batter_index >= len(our_batters_list):
+            st.session_state.opp_scout_batter_index = 0
             
-        manual_override_batter = st.sidebar.selectbox(
-            "Override Current Hitter", 
-            batters_list, 
-            index=st.session_state.our_batter_index,
-            key="opp_manual_hitter_override"
+        manual_override_our = st.sidebar.selectbox(
+            "Override Current Our Hitter", 
+            our_batters_list, 
+            index=st.session_state.opp_scout_batter_index,
+            key="opp_scout_hitter_override"
         )
         
-        new_override_index = batters_list.index(manual_override_batter)
-        if new_override_index != st.session_state.our_batter_index:
-            st.session_state.our_batter_index = new_override_index
-            st.session_state.our_balls = 0
-            st.session_state.our_strikes = 0
+        new_override_index = our_batters_list.index(manual_override_our)
+        if new_override_index != st.session_state.opp_scout_batter_index:
+            st.session_state.opp_scout_batter_index = new_override_index
+            st.session_state.opp_scout_balls = 0
+            st.session_state.opp_scout_strikes = 0
 
-    current_batter = batters_list[st.session_state.our_batter_index] if batters_list else "Batter 1"
-    current_count_str = f"{st.session_state.our_balls}-{st.session_state.our_strikes}"
+    current_batter = our_batters_list[st.session_state.opp_scout_batter_index] if our_batters_list else "Our Batter 1"
+    current_count_str = f"{st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}"
     
-    st.info(f"⚾ **Current Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
+    st.info(f"⚾ **Current Our Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
 
     with st.form("scout_form", clear_on_submit=False):
         st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
@@ -398,26 +413,26 @@ elif mode == "Opponent Pitcher Scout":
                 }).execute()
                 
                 if complete_at_bat:
-                    st.session_state.our_balls = 0
-                    st.session_state.our_strikes = 0
-                    st.session_state.our_batter_index = (st.session_state.our_batter_index + 1) % len(batters_list)
+                    st.session_state.opp_scout_balls = 0
+                    st.session_state.opp_scout_strikes = 0
+                    st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike"]:
-                        if st.session_state.our_strikes < 2:
-                            st.session_state.our_strikes += 1
+                        if st.session_state.opp_scout_strikes < 2:
+                            st.session_state.opp_scout_strikes += 1
                     elif result == "Ball":
-                        if st.session_state.our_balls < 3:
-                            st.session_state.our_balls += 1
+                        if st.session_state.opp_scout_balls < 3:
+                            st.session_state.opp_scout_balls += 1
                     elif result == "Foul":
-                        if st.session_state.our_strikes < 2:
-                            st.session_state.our_strikes += 1
+                        if st.session_state.opp_scout_strikes < 2:
+                            st.session_state.opp_scout_strikes += 1
                     elif result in ["In Play", "Hit By Pitch"]:
-                        st.session_state.our_balls = 0
-                        st.session_state.our_strikes = 0
-                        st.session_state.our_batter_index = (st.session_state.our_batter_index + 1) % len(batters_list)
+                        st.session_state.opp_scout_balls = 0
+                        st.session_state.opp_scout_strikes = 0
+                        st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                         
-                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_balls}-{st.session_state.our_strikes}")
+                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
                 
                 st.cache_data.clear()
                 st.rerun()
@@ -568,7 +583,7 @@ else:
             else:
                 st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
-            st.info("No opponent pitcher scout data logged yet.")
+            st.info("No opponent pitches charted yet.")
     else:
         st.info("No pitch data logged yet today.")
         
@@ -583,9 +598,12 @@ st.sidebar.subheader("Game Management")
 if st.sidebar.button("🗑️ Clear Game Data / Reset"):
     try:
         supabase.table("pitch_logs").delete().neq("id", 0).execute()
-        st.session_state.our_balls = 0
-        st.session_state.our_strikes = 0
-        st.session_state.our_batter_index = 0
+        st.session_state.our_pitcher_balls = 0
+        st.session_state.our_pitcher_strikes = 0
+        st.session_state.our_pitcher_batter_index = 0
+        st.session_state.opp_scout_balls = 0
+        st.session_state.opp_scout_strikes = 0
+        st.session_state.opp_scout_batter_index = 0
         st.sidebar.success("Game data cleared successfully!")
         st.rerun()
     except Exception as e:
