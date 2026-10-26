@@ -83,9 +83,7 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": hit_type
                 }).execute()
                 
-                # Clear cache so data updates instantly on rerun
                 st.cache_data.clear()
-                
                 st.success(f"Logged {pitch_type} ({result}) for {current_our_pitcher}!")
                 st.rerun()
             except Exception as e:
@@ -199,9 +197,7 @@ else:
                     "hit_type": hit_type
                 }).execute()
                 
-                # Clear cache so data updates instantly on rerun
                 st.cache_data.clear()
-                
                 st.success(f"Logged pitch to {current_batter}!")
                 st.rerun()
             except Exception as e:
@@ -245,8 +241,14 @@ else:
                 if valid_batters:
                     selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters, key="view_batter_matchup")
                     batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
-                    st.metric(f"Pitches Seen by {selected_batter_view}", len(batter_vs_df))
-                    st.dataframe(batter_vs_df[["count", "pitch_type", "result", "contact_type", "hit_type"]])
+                    st.metric(f"Total Pitches Seen by {selected_batter_view}", len(batter_vs_df))
+                    
+                    if not batter_vs_df.empty:
+                        st.write("**Pitch Type % Breakdown by Count**")
+                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
+                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
+                    else:
+                        st.info("No pitches logged for this hitter yet.")
                 else:
                     st.info("No individual batter matchups logged yet.")
 
