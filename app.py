@@ -171,7 +171,7 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
 
-    # Manual Hitter Override in Sidebar for scorekeeper corrections
+    # Manual Hitter Override in Sidebar with automatic count reset
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if batters_list:
@@ -184,8 +184,13 @@ elif mode == "Opponent Pitcher Scout":
             index=st.session_state.batter_index,
             key="manual_hitter_override"
         )
-        # Update index if changed manually
-        st.session_state.batter_index = batters_list.index(manual_override_batter)
+        
+        # If user changed hitter via override, update index and reset count to 0-0
+        new_override_index = batters_list.index(manual_override_batter)
+        if new_override_index != st.session_state.batter_index:
+            st.session_state.batter_index = new_override_index
+            st.session_state.opp_balls = 0
+            st.session_state.opp_strikes = 0
 
     current_batter = batters_list[st.session_state.batter_index] if batters_list else "Batter 1"
     current_count_str = f"{st.session_state.opp_balls}-{st.session_state.opp_strikes}"
@@ -254,6 +259,22 @@ elif mode == "Opponent Pitcher Scout":
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
+
+    # Undo Last Pitch Button
+    if st.button("↩️ Undo Last Logged Pitch"):
+        try:
+            # Fetch the most recent pitch log in Supabase
+            recent_res = supabase.table("pitch_logs").select("id").order("timestamp", desc=True).limit(1).execute()
+            if recent_res.data:
+                last_id = recent_res.data[0]["id"]
+                supabase.table("pitch_logs").delete().eq("id", last_id).execute()
+                st.cache_data.clear()
+                st.success("Successfully deleted the last logged pitch!")
+                st.rerun()
+            else:
+                st.warning("No pitches to undo.")
+        except Exception as e:
+            st.error(f"Error undoing pitch: {e}")
 
     st.markdown("---")
     st.subheader("💡 Instant Hitter Cheat Sheet & Matchup Breakdown")
