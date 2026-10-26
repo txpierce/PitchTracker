@@ -12,9 +12,15 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("⚾ TX_Pierce Pitch Tracker")
 
-# Sidebar Mode Selection
+# Sidebar Mode Selection & Lineup Setup
 st.sidebar.header("Navigation")
 mode = st.sidebar.radio("Select Mode", ["Our Pitcher Tracker", "Opponent Pitcher Scout"])
+
+st.sidebar.markdown("---")
+st.sidebar.header("📋 Lineup Setup")
+default_lineup = "Kai Anderson\nJames Doyle\nJackson Hodge\nJake Irwin\nFinley Kayes\nDrake Olson\nCade Pilcik\nSebastian Rojas\nCarson Skuddy\nGael Zambrano"
+lineup_input = st.sidebar.text_area("Our Batting Lineup (One per line)", value=default_lineup, height=150)
+batters_list = [b.strip() for b in lineup_input.split("\n") if b.strip()]
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -30,8 +36,13 @@ df = load_data()
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
     
+    # Persistent Pitcher Selection in Sidebar or Top
+    st.sidebar.markdown("---")
+    st.sidebar.header("⚙️ Active Pitcher Control")
+    current_our_pitcher = st.sidebar.text_input("Active Pitcher Name", value="Starting Pitcher")
+    
     with st.form("pitch_form", clear_on_submit=True):
-        pitcher_name = st.text_input("Pitcher Name")
+        st.write(f"**Logging pitches for:** `{current_our_pitcher}`")
         col1, col2 = st.columns(2)
         with col1:
             count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"])
@@ -39,7 +50,6 @@ if mode == "Our Pitcher Tracker":
         with col2:
             result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"])
             
-        # Conditional fields for Batted Ball / Hit Type inside the form
         st.markdown("---")
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
@@ -51,23 +61,21 @@ if mode == "Our Pitcher Tracker":
         submitted = st.form_submit_button("Log Pitch")
         
         if submitted:
-            if pitcher_name.strip() == "":
-                st.warning("Please enter a pitcher name.")
-            else:
-                try:
-                    supabase.table("pitch_logs").insert({
-                        "mode": mode,
-                        "pitcher": pitcher_name,
-                        "count": count,
-                        "pitch_type": pitch_type,
-                        "result": result,
-                        "contact_type": contact_type if result == "In Play" else "N/A",
-                        "hit_type": hit_type if result == "In Play" else "N/A"
-                    }).execute()
-                    st.success(f"Logged {pitch_type} for {pitcher_name}!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error logging pitch: {e}")
+            try:
+                supabase.table("pitch_logs").insert({
+                    "mode": mode,
+                    "pitcher": current_our_pitcher,
+                    "batter": "N/A",
+                    "count": count,
+                    "pitch_type": pitch_type,
+                    "result": result,
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
+                }).execute()
+                st.success(f"Logged {pitch_type} for {current_our_pitcher}!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error logging pitch: {e}")
 
     st.markdown("---")
     st.subheader("📈 Live Outing Stats & Advanced Analytics")
@@ -125,8 +133,15 @@ if mode == "Our Pitcher Tracker":
 else:
     st.header("🎯 Opponent Pitcher Scout")
     
+    st.sidebar.markdown("---")
+    st.sidebar.header("⚙️ Active Opponent Pitcher")
+    current_opp_pitcher = st.sidebar.text_input("Opponent Pitcher Name / #", value="Opponent Starter")
+    
     with st.form("scout_form", clear_on_submit=True):
-        opp_pitcher = st.text_input("Opponent Pitcher Name / #")
+        st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
+        
+        current_batter = st.selectbox("Current Hitter At Bat", batters_list)
+        
         col1, col2 = st.columns(2)
         with col1:
             count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="opp_count")
@@ -145,26 +160,24 @@ else:
         submitted = st.form_submit_button("Log Opponent Pitch")
         
         if submitted:
-            if opp_pitcher.strip() == "":
-                st.warning("Please enter an opponent pitcher identifier.")
-            else:
-                try:
-                    supabase.table("pitch_logs").insert({
-                        "mode": mode,
-                        "pitcher": opp_pitcher,
-                        "count": count,
-                        "pitch_type": pitch_type,
-                        "result": result,
-                        "contact_type": contact_type if result == "In Play" else "N/A",
-                        "hit_type": hit_type if result == "In Play" else "N/A"
-                    }).execute()
-                    st.success(f"Logged opponent pitch!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error logging pitch: {e}")
+            try:
+                supabase.table("pitch_logs").insert({
+                    "mode": mode,
+                    "pitcher": current_opp_pitcher,
+                    "batter": current_batter,
+                    "count": count,
+                    "pitch_type": pitch_type,
+                    "result": result,
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
+                }).execute()
+                st.success(f"Logged pitch to {current_batter}!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error logging pitch: {e}")
 
     st.markdown("---")
-    st.subheader("💡 Instant Hitter Cheat Sheet & Sequence Analysis")
+    st.subheader("💡 Instant Hitter Cheat Sheet & Matchup Breakdown")
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
@@ -195,9 +208,19 @@ else:
             else:
                 st.info("No 2-strike counts logged yet.")
 
+            # Hitter Breakdown
+            if "batter" in opp_pitcher_df.columns:
+                st.write("### 🧢 Batter Breakdown vs This Pitcher")
+                valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
+                if valid_batters:
+                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters)
+                    batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
+                    st.metric(f"Pitches Seen by {selected_batter_view}", len(batter_vs_df))
+                    st.dataframe(batter_vs_df[["count", "pitch_type", "result", "contact_type", "hit_type"]])
+                else:
+                    st.info("No individual batter matchups logged yet.")
+
             st.write("### 🔄 Sequential Pattern Recognition")
-            st.write("*What does he throw next after specific outcomes?*")
-            
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
             opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
@@ -224,7 +247,7 @@ else:
 # Sidebar Reset Button
 st.sidebar.markdown("---")
 st.sidebar.subheader("Game Management")
-if st.sidebar.button("🗑️ Clear Game Data / Reset"):
+if st.sidebar.button("🗑️ Clear Game Data / Result"):
     try:
         supabase.table("pitch_logs").delete().neq("id", 0).execute()
         st.sidebar.success("Game data cleared successfully!")
