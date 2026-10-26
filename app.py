@@ -83,6 +83,9 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": hit_type
                 }).execute()
                 
+                # Clear cache so data updates instantly on rerun
+                st.cache_data.clear()
+                
                 st.success(f"Logged {pitch_type} ({result}) for {current_our_pitcher}!")
                 st.rerun()
             except Exception as e:
@@ -195,6 +198,10 @@ else:
                     "contact_type": contact_type,
                     "hit_type": hit_type
                 }).execute()
+                
+                # Clear cache so data updates instantly on rerun
+                st.cache_data.clear()
+                
                 st.success(f"Logged pitch to {current_batter}!")
                 st.rerun()
             except Exception as e:
