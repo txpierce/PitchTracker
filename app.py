@@ -235,7 +235,6 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            # Added Batter Breakdown matrix here as well
             if "batter" in opp_pitcher_df.columns:
                 st.write("### 🧢 Batter Breakdown vs This Pitcher")
                 valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
@@ -279,7 +278,7 @@ elif mode == "Opponent Pitcher Scout":
 
 else:
     st.header("🧢 Hitter On-Deck Cheat Sheet")
-    st.write("Dedicated view for hitters to review current opponent pitcher tendencies and count breakdowns.")
+    st.write("Dedicated view for hitters to review full opponent pitcher scouting and count breakdowns[cite: 5].")
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
@@ -287,7 +286,29 @@ else:
             deck_opp = st.selectbox("Select Current Opponent Pitcher", opp_df["pitcher"].unique(), key="deck_opp_select")
             deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
             
+            st.metric("Total Pitches Charted", len(deck_pitcher_df))
+            
+            col_x, col_y = st.columns(2)
+            with col_x:
+                st.write("### Overall Pitch Mix")
+                st.dataframe((deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+            with col_y:
+                st.write("### 🎯 0-0 Pitch Usage")
+                deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_zz.empty:
+                    st.dataframe((deck_zz["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                else:
+                    st.info("No 0-0 pitches logged.")
+            
+            st.write("### 🚨 2-Strike Putaway Tendencies")
+            deck_ts = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not deck_ts.empty:
+                st.dataframe((deck_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+            else:
+                st.info("No 2-strike counts logged yet.")
+
             if "batter" in deck_pitcher_df.columns:
+                st.write("### 🧢 Batter Breakdown vs This Pitcher")
                 valid_batters = [b for b in deck_pitcher_df["batter"].unique() if b != "N/A"]
                 if valid_batters:
                     deck_batter = st.selectbox("Select Hitter to Review", valid_batters, key="deck_batter_select")
@@ -296,7 +317,7 @@ else:
                     st.metric(f"Total Pitches Seen by {deck_batter}", len(batter_vs_df))
                     
                     if not batter_vs_df.empty:
-                        st.write("### 📊 Pitch Type % Breakdown by Count")
+                        st.write("**Pitch Type % Breakdown by Count**")
                         count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
                         st.dataframe(count_pitch_table.round(1).astype(str) + '%')
                     else:
@@ -305,6 +326,26 @@ else:
                     st.info("No individual batter matchups logged yet.")
             else:
                 st.info("Batter tracking column not found.")
+
+            st.write("### 🔄 Sequential Pattern Recognition")
+            deck_seq_df = deck_pitcher_df.copy()
+            deck_seq_df["next_pitch"] = deck_seq_df["pitch_type"].shift(-1)
+            deck_seq_df["next_result"] = deck_seq_df["result"].shift(-1)
+            
+            deck_fb_calls = deck_seq_df[(deck_seq_df["pitch_type"] == "Fastball") & (deck_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
+            
+            if not deck_fb_calls.empty:
+                deck_selected_trigger = st.selectbox("Select Fastball Previous Outcome", deck_fb_calls["result"].unique(), key="deck_seq_trigger")
+                deck_triggered_seq = deck_fb_calls[deck_fb_calls["result"] == deck_selected_trigger]
+                
+                if not deck_triggered_seq.empty and "next_pitch" in deck_triggered_seq.columns:
+                    st.write(f"**Follow-up pitch after Fastball -> {deck_selected_trigger}:**")
+                    deck_seq_mix = deck_triggered_seq["next_pitch"].value_counts(normalize=True) * 100
+                    st.dataframe(deck_seq_mix.round(1).astype(str) + '%')
+                else:
+                    st.info("Not enough sequential data logged yet for this pattern.")
+            else:
+                st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
             st.info("No opponent pitcher scout data logged yet.")
     else:
