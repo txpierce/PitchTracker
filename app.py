@@ -20,7 +20,7 @@ mode = st.sidebar.radio("Select Mode", ["Our Pitcher Tracker", "Opponent Pitcher
 @st.cache_data(ttl=2)
 def load_data():
     try:
-        response = supabase.table("pitch_logs").select("*").execute()
+        response = supabase.table("pitch_logs").select("*").order("timestamp", desc=False).execute()
         return pd.DataFrame(response.data)
     except Exception as e:
         return pd.DataFrame()
@@ -37,7 +37,16 @@ if mode == "Our Pitcher Tracker":
             count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"])
             pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"])
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play - Out", "In Play - Hit", "Hit By Pitch"])
+            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"])
+            
+        # Conditional fields for Batted Ball / Hit Type if "In Play" is selected
+        st.markdown("---")
+        st.write("**If Ball In Play:**")
+        col3, col4 = st.columns(2)
+        with col3:
+            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"])
+        with col4:
+            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"])
             
         submitted = st.form_submit_button("Log Pitch")
         
@@ -51,7 +60,9 @@ if mode == "Our Pitcher Tracker":
                         "pitcher": pitcher_name,
                         "count": count,
                         "pitch_type": pitch_type,
-                        "result": result
+                        "result": result,
+                        "contact_type": contact_type if result == "In Play" else "N/A",
+                        "hit_type": hit_type if result == "In Play" else "N/A"
                     }).execute()
                     st.success(f"Logged {pitch_type} for {pitcher_name}!")
                     st.rerun()
@@ -59,7 +70,7 @@ if mode == "Our Pitcher Tracker":
                     st.error(f"Error logging pitch: {e}")
 
     st.markdown("---")
-    st.subheader("📈 Live Outing Stats")
+    st.subheader("📈 Live Outing Stats & Advanced Analytics")
     
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
@@ -70,12 +81,44 @@ if mode == "Our Pitcher Tracker":
             st.metric("Total Pitches Thrown", len(pitcher_df))
             
             if len(pitcher_df) > 0:
-                st.write("### Pitch Mix Distribution")
-                mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                st.dataframe(mix.round(1).astype(str) + '%')
+                col_a, col_b = st.columns(2)
+                
+                with col_a:
+                    st.write("### Overall Pitch Mix")
+                    mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                    st.dataframe(mix.round(1).astype(str) + '%')
+                    
+                with col_b:
+                    st.write("### 🎯 0-0 Pitch Usage")
+                    zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
+                    if not zero_zero.empty:
+                        zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
+                        st.dataframe(zz_mix.round(1).astype(str) + '%')
+                    else:
+                        st.info("No 0-0 pitches logged yet.")
+
+                st.write("### 🚨 2-Strike Putaway Tendencies (0-2, 1-2, 2-2, 3-2)")
+                two_strike_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                if not two_strike_df.empty:
+                    ts_mix = two_strike_df["pitch_type"].value_counts(normalize=True) * 100
+                    st.dataframe(ts_mix.round(1).astype(str) + '%')
+                else:
+                    st.info("No 2-strike counts logged yet.")
+
+                st.write("### 📊 Batted Ball Profile (In Play)")
+                in_play_df = pitcher_df[pitcher_df["result"] == "In Play"]
+                if not in_play_df.empty:
+                    c_col1, c_col2 = st.columns(2)
+                    with c_col1:
+                        st.write("**Contact Types**")
+                        st.dataframe(in_play_df["contact_type"].value_counts())
+                    with c_col2:
+                        st.write("**Hit Outcomes**")
+                        st.dataframe(in_play_df["hit_type"].value_counts())
+                else:
+                    st.info("No balls in play logged yet.")
         else:
-            info_text = "No pitches logged for our pitchers yet."
-            st.info(info_text)
+            st.info("No pitches logged for our pitchers yet.")
     else:
         st.info("No pitch data logged yet today.")
 
@@ -89,7 +132,15 @@ else:
             count = st.selectbox("Count (Balls-Strikes)", ["0-0", "1-0", "0-1", "1-1", "2-0", "2-1", "3-0", "3-1", "3-2", "0-2", "1-2", "2-2"], key="opp_count")
             pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="opp_type")
         with col2:
-            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play - Out", "In Play - Hit", "Hit By Pitch"], key="opp_result")
+            result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"], key="opp_result")
+            
+        st.markdown("---")
+        st.write("**If Ball In Play:**")
+        col3, col4 = st.columns(2)
+        with col3:
+            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="opp_contact")
+        with col4:
+            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="opp_hit")
             
         submitted = st.form_submit_button("Log Opponent Pitch")
         
@@ -103,7 +154,9 @@ else:
                         "pitcher": opp_pitcher,
                         "count": count,
                         "pitch_type": pitch_type,
-                        "result": result
+                        "result": result,
+                        "contact_type": contact_type if result == "In Play" else "N/A",
+                        "hit_type": hit_type if result == "In Play" else "N/A"
                     }).execute()
                     st.success(f"Logged opponent pitch!")
                     st.rerun()
@@ -111,25 +164,62 @@ else:
                     st.error(f"Error logging pitch: {e}")
 
     st.markdown("---")
-    st.subheader("💡 Instant Hitter Cheat Sheet")
+    st.subheader("💡 Instant Hitter Cheat Sheet & Sequence Analysis")
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        opp_df = opp_df.sort_values(by="timestamp", ascending=True) # Ensure sequential order
+        
         if not opp_df.empty:
             selected_opp = st.selectbox("Select Opponent Pitcher", opp_df["pitcher"].unique())
             opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
             
-            st.write("### Overall Pitch Mix")
-            st.dataframe((opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+            col_x, col_y = st.columns(2)
+            with col_x:
+                st.write("### Overall Pitch Mix")
+                st.dataframe((opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+            with col_y:
+                st.write("### 🎯 0-0 Pitch Usage")
+                opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
+                if not opp_zz.empty:
+                    st.dataframe((opp_zz["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                else:
+                    st.info("No 0-0 pitches logged.")
             
-            st.write("### 2-Strike Tendencies")
-            two_strike_df = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
-            if not two_strike_df.empty:
-                st.dataframe((two_strike_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+            st.write("### 🚨 2-Strike Putaway Tendencies")
+            opp_ts = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not opp_ts.empty:
+                st.dataframe((opp_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
             else:
-                st.info("No 2-strike counts logged yet for this pitcher.")
+                st.info("No 2-strike counts logged yet.")
+
+            # Sequence Analysis
+            st.write("### 🔄 Sequential Pattern Recognition")
+            st.write("*What does he throw next after specific outcomes?*")
+            
+            # Create shifted column for next pitch
+            opp_pitcher_df = opp_pitcher_df.copy()
+            opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
+            opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
+            
+            # Example filter: Fastball results
+            fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
+            
+            if not fb_calls.empty:
+                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique())
+                triggered_seq = fb_calls[fb_calls["result"] == selected_trigger]
+                
+                if not triggered_seq.empty and "next_pitch" in triggered_seq.columns:
+                    st.write(f"**Follow-up pitch after Fastball -> {selected_trigger}:**")
+                    seq_mix = triggered_seq["next_pitch"].value_counts(normalize=True) * 100
+                    st.dataframe(seq_mix.round(1).astype(str) + '%')
+                else:
+                
+                    st.info("Not enough sequential data logged yet for this pattern.")
+            else:
+                st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -145,4 +235,3 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.rerun()
     except Exception as e:
         st.sidebar.error(f"Error clearing data: {e}")
-        
