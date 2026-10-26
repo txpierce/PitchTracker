@@ -170,12 +170,24 @@ elif mode == "Opponent Pitcher Scout":
         current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever")
     else:
         current_opp_pitcher = selected_opp_option
-    
-    # Ensure lineup index is within bounds
-    if st.session_state.batter_index >= len(batters_list):
-        st.session_state.batter_index = 0
-        
-    current_batter = batters_list[st.session_state.batter_index]
+
+    # Manual Hitter Override in Sidebar for scorekeeper corrections
+    st.sidebar.markdown("---")
+    st.sidebar.header("🛠️ Scorekeeper Correction")
+    if batters_list:
+        if st.session_state.batter_index >= len(batters_list):
+            st.session_state.batter_index = 0
+            
+        manual_override_batter = st.sidebar.selectbox(
+            "Override Current Hitter", 
+            batters_list, 
+            index=st.session_state.batter_index,
+            key="manual_hitter_override"
+        )
+        # Update index if changed manually
+        st.session_state.batter_index = batters_list.index(manual_override_batter)
+
+    current_batter = batters_list[st.session_state.batter_index] if batters_list else "Batter 1"
     current_count_str = f"{st.session_state.opp_balls}-{st.session_state.opp_strikes}"
     
     st.info(f"⚾ **Current Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
@@ -205,7 +217,6 @@ elif mode == "Opponent Pitcher Scout":
             
         if submitted or complete_at_bat:
             try:
-                # Log the pitch to Supabase
                 supabase.table("pitch_logs").insert({
                     "mode": "Opponent Pitcher Scout",
                     "pitcher": current_opp_pitcher,
@@ -218,13 +229,11 @@ elif mode == "Opponent Pitcher Scout":
                 }).execute()
                 
                 if complete_at_bat:
-                    # Reset count to 0-0 and advance to next hitter in lineup
                     st.session_state.opp_balls = 0
                     st.session_state.opp_strikes = 0
                     st.session_state.batter_index = (st.session_state.batter_index + 1) % len(batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
-                    # Automatically update count based on result
                     if result in ["Called Strike", "Swinging Strike"]:
                         if st.session_state.opp_strikes < 2:
                             st.session_state.opp_strikes += 1
@@ -235,7 +244,6 @@ elif mode == "Opponent Pitcher Scout":
                         if st.session_state.opp_strikes < 2:
                             st.session_state.opp_strikes += 1
                     elif result in ["In Play", "Hit By Pitch"]:
-                        # Ends the at-bat automatically on contact or HBP
                         st.session_state.opp_balls = 0
                         st.session_state.opp_strikes = 0
                         st.session_state.batter_index = (st.session_state.batter_index + 1) % len(batters_list)
