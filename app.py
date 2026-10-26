@@ -14,7 +14,7 @@ st.title("⚾ TX_Pierce Pitch Tracker")
 
 # Sidebar Mode Selection & Lineup Setup
 st.sidebar.header("Navigation")
-mode = st.sidebar.radio("Select Mode", ["Our Pitcher Tracker", "Opponent Pitcher Scout"])
+mode = st.sidebar.radio("Select Mode", ["Our Pitcher Tracker", "Opponent Pitcher Scout", "Hitter On-Deck Cheat Sheet"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Setup")
@@ -41,7 +41,7 @@ if mode == "Our Pitcher Tracker":
     
     existing_pitchers = []
     if not df.empty and "pitcher" in df.columns:
-        existing_pitchers = list(df[df["mode"] == mode]["pitcher"].unique())
+        existing_pitchers = list(df[df["mode"] == "Our Pitcher Tracker"]["pitcher"].unique())
     
     pitcher_options = existing_pitchers + ["➕ Add New Reliever/Pitcher"]
     selected_pitcher_option = st.sidebar.selectbox("Current Pitcher", pitcher_options, index=0 if existing_pitchers else len(pitcher_options)-1)
@@ -73,7 +73,7 @@ if mode == "Our Pitcher Tracker":
         if submitted:
             try:
                 supabase.table("pitch_logs").insert({
-                    "mode": mode,
+                    "mode": "Our Pitcher Tracker",
                     "pitcher": current_our_pitcher,
                     "batter": "N/A",
                     "count": count,
@@ -144,7 +144,7 @@ if mode == "Our Pitcher Tracker":
     else:
         st.info("No pitch data logged yet today.")
 
-else:
+elif mode == "Opponent Pitcher Scout":
     st.header("🎯 Opponent Pitcher Scout")
     
     st.sidebar.markdown("---")
@@ -152,7 +152,7 @@ else:
     
     existing_opps = []
     if not df.empty and "mode" in df.columns:
-        existing_opps = list(df[df["mode"] == mode]["pitcher"].unique())
+        existing_opps = list(df[df["mode"] == "Opponent Pitcher Scout"]["pitcher"].unique())
         
     opp_options = existing_opps + ["➕ Add New Opponent Pitcher"]
     selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=0 if existing_opps else len(opp_options)-1, key="opp_select_side")
@@ -187,7 +187,7 @@ else:
         if submitted:
             try:
                 supabase.table("pitch_logs").insert({
-                    "mode": mode,
+                    "mode": "Opponent Pitcher Scout",
                     "pitcher": current_opp_pitcher,
                     "batter": current_batter,
                     "count": count,
@@ -235,23 +235,6 @@ else:
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            if "batter" in opp_pitcher_df.columns:
-                st.write("### 🧢 Batter Breakdown vs This Pitcher")
-                valid_batters = [b for b in opp_pitcher_df["batter"].unique() if b != "N/A"]
-                if valid_batters:
-                    selected_batter_view = st.selectbox("Select Hitter to Review", valid_batters, key="view_batter_matchup")
-                    batter_vs_df = opp_pitcher_df[opp_pitcher_df["batter"] == selected_batter_view]
-                    st.metric(f"Total Pitches Seen by {selected_batter_view}", len(batter_vs_df))
-                    
-                    if not batter_vs_df.empty:
-                        st.write("**Pitch Type % Breakdown by Count**")
-                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
-                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                    else:
-                        st.info("No pitches logged for this hitter yet.")
-                else:
-                    st.info("No individual batter matchups logged yet.")
-
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
@@ -275,6 +258,39 @@ else:
             st.info("No opponent pitches charted yet.")
     else:
         st.info("No pitch data logged yet.")
+
+else:
+    st.header("🧢 Hitter On-Deck Cheat Sheet")
+    st.write("Dedicated view for hitters to review current opponent pitcher tendencies and count breakdowns.")
+    
+    if not df.empty and "mode" in df.columns:
+        opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        if not opp_df.empty:
+            deck_opp = st.selectbox("Select Current Opponent Pitcher", opp_df["pitcher"].unique(), key="deck_opp_select")
+            deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
+            
+            if "batter" in deck_pitcher_df.columns:
+                valid_batters = [b for b in deck_pitcher_df["batter"].unique() if b != "N/A"]
+                if valid_batters:
+                    deck_batter = st.selectbox("Select Hitter to Review", valid_batters, key="deck_batter_select")
+                    batter_vs_df = deck_pitcher_df[deck_pitcher_df["batter"] == deck_batter]
+                    
+                    st.metric(f"Total Pitches Seen by {deck_batter}", len(batter_vs_df))
+                    
+                    if not batter_vs_df.empty:
+                        st.write("### 📊 Pitch Type % Breakdown by Count")
+                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
+                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
+                    else:
+                        st.info("No pitches logged for this hitter against this pitcher yet.")
+                else:
+                    st.info("No individual batter matchups logged yet.")
+            else:
+                st.info("Batter tracking column not found.")
+        else:
+            st.info("No opponent pitcher scout data logged yet.")
+    else:
+        st.info("No pitch data logged yet today.")
 
 # Sidebar Reset Button
 st.sidebar.markdown("---")
