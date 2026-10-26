@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client
+import time
 
 # Page Config
 st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
@@ -235,8 +236,6 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            # (Batter Breakdown section removed from here as requested)
-
             st.write("### 🔄 Sequential Pattern Recognition")
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
@@ -264,6 +263,9 @@ elif mode == "Opponent Pitcher Scout":
 else:
     st.header("🧢 Hitter On-Deck Cheat Sheet")
     st.write("Dedicated view for hitters to review full opponent pitcher scouting and count breakdowns[cite: 5].")
+    
+    # Auto-refresh control for the third device
+    auto_refresh = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False)
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
@@ -335,6 +337,12 @@ else:
             st.info("No opponent pitcher scout data logged yet.")
     else:
         st.info("No pitch data logged yet today.")
+        
+    # Trigger auto-refresh loop if checked
+    if auto_refresh:
+        time.sleep(5)
+        st.cache_data.clear()
+        st.rerun()
 
 # Sidebar Reset Button
 st.sidebar.markdown("---")
