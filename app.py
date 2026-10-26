@@ -39,7 +39,7 @@ if mode == "Our Pitcher Tracker":
         with col2:
             result = st.selectbox("Result", ["Called Strike", "Swinging Strike", "Ball", "Foul", "In Play", "Hit By Pitch"])
             
-        # Conditional fields for Batted Ball / Hit Type if "In Play" is selected
+        # Conditional fields for Batted Ball / Hit Type inside the form
         st.markdown("---")
         st.write("**If Ball In Play:**")
         col3, col4 = st.columns(2)
@@ -168,7 +168,7 @@ else:
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
-        opp_df = opp_df.sort_values(by="timestamp", ascending=True) # Ensure sequential order
+        opp_df = opp_df.sort_values(by="timestamp", ascending=True)
         
         if not opp_df.empty:
             selected_opp = st.selectbox("Select Opponent Pitcher", opp_df["pitcher"].unique())
@@ -195,16 +195,13 @@ else:
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            # Sequence Analysis
             st.write("### 🔄 Sequential Pattern Recognition")
             st.write("*What does he throw next after specific outcomes?*")
             
-            # Create shifted column for next pitch
             opp_pitcher_df = opp_pitcher_df.copy()
             opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
             opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
             
-            # Example filter: Fastball results
             fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Foul"]))]
             
             if not fb_calls.empty:
@@ -216,7 +213,6 @@ else:
                     seq_mix = triggered_seq["next_pitch"].value_counts(normalize=True) * 100
                     st.dataframe(seq_mix.round(1).astype(str) + '%')
                 else:
-                
                     st.info("Not enough sequential data logged yet for this pattern.")
             else:
                 st.info("Log more fastball outcomes to unlock sequence tracking.")
