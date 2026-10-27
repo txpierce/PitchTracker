@@ -834,6 +834,16 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Bullpen Pitcher Control")
     
+    # --- DEDICATED BULLPEN CLEAR DATA BUTTON ---
+    if st.sidebar.button("🗑️ Clear Bullpen Data & Start New"):
+        try:
+            supabase.table("pitch_logs").delete().eq("mode", "Bullpen Charting").execute()
+            st.sidebar.success("Bullpen session cleared successfully!")
+            st.cache_data.clear()
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Error clearing bullpen data: {e}")
+
     existing_bullpens = []
     if not df.empty and "mode" in df.columns:
         existing_bullpens = list(df[df["mode"] == "Bullpen Charting"]["pitcher"].unique())
