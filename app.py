@@ -280,7 +280,6 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-                metrics_rows = []
                 for p_type in pitcher_df["pitch_type"].unique():
                     p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
                     total_p = len(p_sub)
@@ -294,15 +293,15 @@ if mode == "Our Pitcher Tracker":
                     whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                     total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                     
-                    metrics_rows.append({
-                        "Pitch Type": p_type,
-                        "Total Thrown": total_p,
-                        "Called Strike %": f"{cs_pct:.1f}%",
-                        "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                        "Total Strike %": f"{total_strike_pct:.1f}%",
-                        "Chase Count": chase_count
-                    })
-                st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+                    st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                    st.markdown(f"""
+                    * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                    * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                    * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                    """, unsafe_allow_html=True)
 
                 st.write("### 📊 Pitch Type % Breakdown by Count")
                 st.dataframe(pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%')
@@ -450,7 +449,6 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.info("No 2-strike counts logged yet.")
 
             st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            metrics_rows = []
             for p_type in coach_pitcher_df["pitch_type"].unique():
                 p_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == p_type]
                 total_p = len(p_sub)
@@ -464,15 +462,15 @@ elif mode == "Our Pitching Coach Dashboard":
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                metrics_rows.append({
-                    "Pitch Type": p_type,
-                    "Total Thrown": total_p,
-                    "Called Strike %": f"{cs_pct:.1f}%",
-                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                    "Total Strike %": f"{total_strike_pct:.1f}%",
-                    "Chase Count": chase_count
-                })
-            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"""
+                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                """, unsafe_allow_html=True)
 
             # --- INDIVIDUAL HITTER MATCHUP BREAKDOWN WITH SEPARATE TABLES PER PITCH ---
             st.markdown("---")
@@ -701,7 +699,6 @@ elif mode == "Opponent Pitcher Scout":
                 st.info("No 2-strike counts logged yet.")
 
             st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            metrics_rows = []
             for p_type in opp_pitcher_df["pitch_type"].unique():
                 p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
                 total_p = len(p_sub)
@@ -715,15 +712,15 @@ elif mode == "Opponent Pitcher Scout":
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                metrics_rows.append({
-                    "Pitch Type": p_type,
-                    "Total Thrown": total_p,
-                    "Called Strike %": f"{cs_pct:.1f}%",
-                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                    "Total Strike %": f"{total_strike_pct:.1f}%",
-                    "Chase Count": chase_count
-                })
-            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"""
+                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                """, unsafe_allow_html=True)
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -793,7 +790,6 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                 st.info("No 2-strike counts logged yet.")
 
             st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            deck_metrics_rows = []
             for p_type in deck_pitcher_df["pitch_type"].unique():
                 p_sub = deck_pitcher_df[deck_pitcher_df["pitch_type"] == p_type]
                 total_p = len(p_sub)
@@ -807,15 +803,15 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                deck_metrics_rows.append({
-                    "Pitch Type": p_type,
-                    "Total Thrown": total_p,
-                    "Called Strike %": f"{cs_pct:.1f}%",
-                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                    "Total Strike %": f"{total_strike_pct:.1f}%",
-                    "Chase Count": chase_count
-                })
-            st.dataframe(pd.DataFrame(deck_metrics_rows), hide_index=True)
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"""
+                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
+                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                """, unsafe_allow_html=True)
 
             # --- INDIVIDUAL HITTER REVIEW & STRATEGIC APPROACH ---
             st.markdown("---")
