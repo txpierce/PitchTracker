@@ -632,4 +632,55 @@ else:
             st.metric("Total Pitches Charted", len(deck_pitcher_df))
             
             st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
-            if len(deck_pitcher
+            if len(deck_pitcher_df) >= 3:
+                deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                fav_00 = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_zz.empty else "Fastball"
+                fav_00_pct = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_zz.empty else 50.0
+
+                deck_ts = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                putaway_pitch = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_ts.empty else "Breaking Ball"
+                putaway_pct = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_ts.empty else 50.0
+
+                st.success(f"""
+                * 🟢 **0-0 Plan (First-Pitch Hunt):** Expect a **{fav_00}** (`{fav_00_pct:.1f}%` of the time on 0-0). If it's over the plate, put a good swing on it early!
+                * ⚠️ **2-Strike Trap Notice:** Watch out for the **{putaway_pitch}** (`{putaway_pct:.1f}%` in putaway counts). Expand your zone discipline or protect the plate.
+                """)
+            else:
+                st.info("Waiting for more opponent pitches to generate live dugout game plan cards.")
+
+            col_x, col_y = st.columns(2)
+            with col_x:
+                mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
+            with col_y:
+                deck_zz_show = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_zz_show.empty:
+                    render_glowing_metric_cards(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+        else:
+            st.info("No opponent pitches charted yet.")
+    else:
+        st.info("No pitch data logged yet today.")
+        
+    if auto_refresh:
+        time.sleep(5)
+        st.cache_data.clear()
+        st.rerun()
+
+# Sidebar Reset Button
+st.sidebar.markdown("---")
+st.sidebar.subheader("Game Management")
+if st.sidebar.button("🗑️ Clear Game Data / Reset"):
+    try:
+        supabase.table("pitch_logs").delete().neq("id", 0).execute()
+        st.session_state.our_pitcher_balls = 0
+        st.session_state.our_pitcher_strikes = 0
+        st.session_state.our_pitcher_batter_index = 0
+        st.session_state.opp_scout_balls = 0
+        st.session_state.opp_scout_strikes = 0
+        st.session_state.opp_scout_batter_index = 0
+        st.sidebar.success("Game data cleared successfully!")
+        st.rerun()
+    except Exception as e:
+        st.sidebar.error(f"Error clearing data: {e}")
