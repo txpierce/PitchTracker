@@ -153,7 +153,6 @@ if mode == "Our Pitcher Tracker":
         if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
             st.session_state.our_pitcher_batter_index = 0
             
-        # Removed widget key so it reliably updates its index from session state on every rerun
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
@@ -212,7 +211,6 @@ if mode == "Our Pitcher Tracker":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
-                    # Cycles through Batter 1 to 9, then loops back to 1 (index 0)
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
@@ -407,6 +405,36 @@ elif mode == "Our Pitching Coach Dashboard":
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
 
+            # --- INDIVIDUAL HITTER MATCHUP BREAKDOWN ---
+            st.markdown("---")
+            st.subheader("👤 Individual Hitter Matchup & History Breakdown")
+            
+            logged_hitters = list(coach_pitcher_df["batter"].unique()) if "batter" in coach_pitcher_df.columns else []
+            hitter_review_options = logged_hitters if logged_hitters else opp_batters_list
+            
+            if hitter_review_options:
+                selected_review_hitter = st.selectbox("Select Opponent Hitter to Review Matchup", hitter_review_options, key="coach_hitter_review_select")
+                hitter_matchup_df = coach_pitcher_df[coach_pitcher_df["batter"] == selected_review_hitter]
+                
+                if not hitter_matchup_df.empty:
+                    st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
+                    
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        st.write("**Pitch Types Thrown to Hitter**")
+                        h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
+                        render_glowing_bars(h_mix, title_text="Hitter Pitch Mix Faced")
+                    with hc2:
+                        st.write("**Result Breakdown**")
+                        st.dataframe(hitter_matchup_df["result"].value_counts().reset_index().rename(columns={"index": "Result", "count": "Count"}))
+                    
+                    st.write("**Detailed Pitch Log History vs. Hitter**")
+                    st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
+                else:
+                    st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
+            else:
+                st.info("No opponent batters available for review.")
+
             st.markdown("---")
             st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
             if total_pitches >= 5:
@@ -463,7 +491,6 @@ elif mode == "Opponent Pitcher Scout":
         if st.session_state.opp_scout_batter_index >= len(our_batters_list):
             st.session_state.opp_scout_batter_index = 0
             
-        # Removed widget key so it reliably updates its index from session state on every rerun
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
@@ -521,7 +548,6 @@ elif mode == "Opponent Pitcher Scout":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
-                    # Cycles through Batter 1 to 9, then loops back to 1 (index 0)
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
