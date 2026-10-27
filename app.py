@@ -446,7 +446,7 @@ elif mode == "Our Pitching Coach Dashboard":
                         }])
                         
                         st.markdown(f"**📌 Pitch: {pt}** (Total: {len(pt_df)})")
-                        st.dataframe(single_pitch_df, hide_Index=True)
+                        st.dataframe(single_pitch_df, hide_index=True)
                     
                     st.write("**Detailed Pitch Log History vs. Hitter**")
                     st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
