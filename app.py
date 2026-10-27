@@ -959,7 +959,7 @@ else:
         else:
             st.info("No bullpen sessions logged yet.")
     else:
-    st.info("No pitch data logged yet.")
+        st.info("No pitch data logged yet.")
 
 # Sidebar Reset Button
 st.sidebar.markdown("---")
