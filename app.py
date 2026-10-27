@@ -153,10 +153,14 @@ if mode == "Our Pitcher Tracker":
         if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
             st.session_state.our_pitcher_batter_index = 0
             
+        expected_batter = opp_batters_list[st.session_state.our_pitcher_batter_index]
+        if "our_mode_hitter_override" not in st.session_state or st.session_state.our_mode_hitter_override not in opp_batters_list:
+            st.session_state.our_mode_hitter_override = expected_batter
+            
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
-            index=st.session_state.our_pitcher_batter_index,
+            index=opp_batters_list.index(st.session_state.our_mode_hitter_override),
             key="our_mode_hitter_override"
         )
         
@@ -464,10 +468,14 @@ elif mode == "Opponent Pitcher Scout":
         if st.session_state.opp_scout_batter_index >= len(our_batters_list):
             st.session_state.opp_scout_batter_index = 0
             
+        expected_batter_our = our_batters_list[st.session_state.opp_scout_batter_index]
+        if "opp_scout_hitter_override" not in st.session_state or st.session_state.opp_scout_hitter_override not in our_batters_list:
+            st.session_state.opp_scout_hitter_override = expected_batter_our
+            
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
-            index=st.session_state.opp_scout_batter_index,
+            index=our_batters_list.index(st.session_state.opp_scout_hitter_override),
             key="opp_scout_hitter_override"
         )
         
