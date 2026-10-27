@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client
 import time
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Page Config
 st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
@@ -89,6 +90,16 @@ if "opp_scout_strikes" not in st.session_state:
     st.session_state.opp_scout_strikes = 0
 if "opp_scout_batter_index" not in st.session_state:
     st.session_state.opp_scout_batter_index = 0
+
+# Initialize Bullpen Click Coordinates in Session State if missing
+if "bp_target_x" not in st.session_state:
+    st.session_state.bp_target_x = 0.0
+if "bp_target_y" not in st.session_state:
+    st.session_state.bp_target_y = 2.0
+if "bp_actual_x" not in st.session_state:
+    st.session_state.bp_actual_x = 0.0
+if "bp_actual_y" not in st.session_state:
+    st.session_state.bp_actual_y = 2.0
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -828,7 +839,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
 
 else:
     st.header("🎯 Bullpen Charting & Command Analysis")
-    st.write("Chart bullpen sessions by recording intended target vs. actual pitch location, tracking total pitches, overall strike %, and pitch-specific command heat maps.")
+    st.write("Chart bullpen sessions visually from the pitcher's perspective. Select your target location on the strike zone, then select where the pitch actually went.")
     
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Bullpen Pitcher Control")
@@ -845,33 +856,53 @@ else:
     else:
         current_bp_pitcher = selected_bp_option
 
-    with st.form("bullpen_form_v2", clear_on_submit=True):
+    with st.form("bullpen_form_v3", clear_on_submit=True):
         st.write(f"**Logging Bullpen Session for:** `{current_bp_pitcher}`")
         
         bp_col1, bp_col2 = st.columns(2)
         with bp_col1:
-            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v2")
+            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v3")
         with bp_col2:
-            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v2")
+            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v3")
             
         st.markdown("---")
-        st.write("**📍 Strike Zone Coordinates**")
-        st.info("Select where the pitcher intended to throw (Target) vs. where the pitch actually went (Actual). Center of plate is X=0, Y=2.0.")
+        st.subheader("📍 Visual Strike Zone Plotter (Pitcher Perspective)")
+        st.info("Use the coordinate inputs below to target and plot the pitch. (Catcher's perspective: X: -1.5 [Left/Glove] to +1.5 [Right/Arm-side], Y: 0.5 [Low] to 3.5 [High]).")
         
-        tc_col1, tc_col2 = st.columns(2)
-        with tc_col1:
-            st.markdown("**🎯 Intended Target (Red Dot)**")
-            t_x = st.slider("Target X (-1.5 to 1.5)", -1.5, 1.5, 0.0, 0.1, key="t_x_v2")
-            t_y = st.slider("Target Y (0.5 to 3.5)", 0.5, 3.5, 2.0, 0.1, key="t_y_v2")
+        c_in1, c_in2 = st.columns(2)
+        with c_in1:
+            st.markdown("### 🎯 1st Click: Intended Target (Red Dot)")
+            t_x = st.slider("Target X (Horizontal)", -1.5, 1.5, st.session_state.bp_target_x, 0.05, key="tz_x")
+            t_y = st.slider("Target Y (Vertical)", 0.5, 3.5, st.session_state.bp_target_y, 0.05, key="tz_y")
+        with c_in2:
+            st.markdown("### 📍 2nd Click: Actual Location (Blue Dot)")
+            a_x = st.slider("Actual X (Horizontal)", -1.5, 1.5, st.session_state.bp_actual_x, 0.05, key="az_x")
+            a_y = st.slider("Actual Y (Vertical)", 0.5, 3.5, st.session_state.bp_actual_y, 0.05, key="az_y")
             
-        with tc_col2:
-            st.markdown("**📍 Actual Location (Blue Dot)**")
-            a_x = st.slider("Actual X (-1.5 to 1.5)", -1.5, 1.5, 0.0, 0.1, key="a_x_v2")
-            a_y = st.slider("Actual Y (0.5 to 3.5)", 0.5, 3.5, 2.0, 0.1, key="a_y_v2")
-            
-        bp_submitted_v2 = st.form_submit_button("Log Pitch to Session 🎯")
+        # Live interactive visual preview of the current pitch being plotted
+        preview_fig = go.Figure()
+        # Strike Zone Box (-0.83 to 0.83, 1.5 to 3.5)
+        preview_fig.add_shape(type="rect", x0=-0.83, y0=1.5, x1=0.83, y1=3.5, line=dict(color="white", width=3))
+        # Home plate pentagon outline at bottom
+        preview_fig.add_shape(type="path", path="M -0.7 0.7 L 0.7 0.7 L 0.7 0.5 L 0.0 0.2 L -0.7 0.5 Z", line=dict(color="gray", width=2))
         
-        if bp_submitted_v2:
+        # Add Target (Red) and Actual (Blue)
+        preview_fig.add_trace(go.Scatter(x=[t_x], y=[t_y], mode="markers+text", marker=dict(color="#ff4b4b", size=16), text=["TARGET"], textposition="top center", name="Intended Target"))
+        preview_fig.add_trace(go.Scatter(x=[a_x], y=[a_y], mode="markers+text", marker=dict(color="#1c83e1", size=16), text=["ACTUAL"], textposition="bottom center", name="Actual Location"))
+        
+        preview_fig.update_layout(
+            title="Live Pitch Plot Preview",
+            xaxis_title="Horizontal (Catcher's Glove ◄ ► Arm-side)",
+            yaxis_title="Vertical Height",
+            range_x=[-2.0, 2.0], range_y=[0.0, 4.0],
+            plot_bgcolor="#1e1e2f", paper_bgcolor="#1e1e2f", font_color="white",
+            height=400, margin=dict(l=20, r=20, t=40, b=20)
+        )
+        st.plotly_chart(preview_fig, use_container_width=True)
+        
+        bp_submitted_v3 = st.form_submit_button("Log Pitch to Session 🎯")
+        
+        if bp_submitted_v3:
             try:
                 supabase.table("pitch_logs").insert({
                     "mode": "Bullpen Charting",
@@ -880,8 +911,8 @@ else:
                     "count": "0-0",
                     "pitch_type": bp_pitch_type,
                     "result": bp_result,
-                    "contact_type": f"{t_x},{t_y}", # Storing target X,Y
-                    "hit_type": f"{a_x},{a_y}"       # Storing actual X,Y
+                    "contact_type": f"{t_x},{t_y}", # Target X,Y
+                    "hit_type": f"{a_x},{a_y}"       # Actual X,Y
                 }).execute()
                 st.success(f"Logged {bp_pitch_type} ({bp_result}) successfully!")
                 st.cache_data.clear()
@@ -944,7 +975,7 @@ else:
             st.dataframe(pd.DataFrame(bp_metrics_rows), hide_index=True)
             
             st.markdown("---")
-            st.subheader("🎨 Command Target vs. Actual Location Plot")
+            st.subheader("🎨 Command Target vs. Actual Strike Zone Plot")
             st.info("🔴 **Red Dots:** Intended Target | 🔵 **Blue Dots:** Actual Location")
             
             plot_data = []
@@ -984,9 +1015,12 @@ else:
                     title=f"Command Map for {selected_bp_view} ({selected_plot_pitch})"
                 )
                 
+                # Strike zone box and home plate
                 fig_bp.add_shape(type="rect", x0=-0.83, y0=1.5, x1=0.83, y1=3.5, line=dict(color="white", width=2))
+                fig_bp.add_shape(type="path", path="M -0.7 0.7 L 0.7 0.7 L 0.7 0.5 L 0.0 0.2 L -0.7 0.5 Z", line=dict(color="gray", width=2))
+
                 fig_bp.update_layout(
-                    xaxis_title="Horizontal Location (Plate Width)",
+                    xaxis_title="Horizontal Location (Glove ◄ ► Arm-side)",
                     yaxis_title="Vertical Location (Height)",
                     plot_bgcolor="#1e1e2f",
                     paper_bgcolor="#1e1e2f",
