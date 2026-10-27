@@ -867,7 +867,7 @@ else:
             
         st.markdown("---")
         st.subheader("📍 Visual Strike Zone Plotter (Pitcher Perspective)")
-        st.info("Use the coordinate inputs below to target and plot the pitch. (Catcher's perspective: X: -1.5 [Left/Glove] to +1.5 [Right/Arm-side], Y: 0.5 [Low] to 3.5 [High]).")
+        st.info("Use the coordinate sliders below to target and plot the pitch. (Catcher's perspective: X: -1.5 [Left/Glove] to +1.5 [Right/Arm-side], Y: 0.5 [Low] to 3.5 [High]).")
         
         c_in1, c_in2 = st.columns(2)
         with c_in1:
@@ -894,7 +894,8 @@ else:
             title="Live Pitch Plot Preview",
             xaxis_title="Horizontal (Catcher's Glove ◄ ► Arm-side)",
             yaxis_title="Vertical Height",
-            range_x=[-2.0, 2.0], range_y=[0.0, 4.0],
+            xaxis=dict(range=[-2.0, 2.0]),
+            yaxis=dict(range=[0.0, 4.0]),
             plot_bgcolor="#1e1e2f", paper_bgcolor="#1e1e2f", font_color="white",
             height=400, margin=dict(l=20, r=20, t=40, b=20)
         )
@@ -952,6 +953,15 @@ else:
                 st.metric("Total Pitches Thrown", total_bp_pitches)
             with col_b2:
                 st.markdown(f"""
+                .metric-card {{
+                    background-color: #1e1e2f;
+                    border: 1px solid #2a2a40;
+                    border-radius: 12px;
+                    padding: 16px;
+                    text-align: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    margin-bottom: 10px;
+                }}
                 <div class="metric-card">
                     <h3>🎯 Overall Strike %</h3>
                     <h2>{overall_strike_pct:.1f}%</h2>
