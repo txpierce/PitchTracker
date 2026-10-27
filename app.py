@@ -6,6 +6,45 @@ import time
 # Page Config
 st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
 
+# --- CUSTOM CSS FOR GLOWING EDGE HIGHLIGHTS & METRIC CARDS ---
+st.markdown("""
+<style>
+.metric-card {
+    background-color: #1e1e2f;
+    border: 1px solid #2a2a40;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    margin-bottom: 10px;
+}
+.metric-card h3 {
+    color: #a0a0c0;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+.metric-card h2 {
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 700;
+}
+.glow-bar-container {
+    background-color: #2a2a40;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 12px;
+    width: 100%;
+    margin-bottom: 16px;
+}
+.glow-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1c83e1, #00ccff);
+    box-shadow: 0 0 10px #00ccff, 0 0 20px #1c83e1;
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Initialize Supabase Client using Streamlit Secrets
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -60,25 +99,34 @@ def load_data():
 
 df = load_data()
 
-# --- HELPER: RENDER VISUAL GAUGES & BARS ---
-def render_visual_mix(series, title_text="Pitch Distribution"):
+# --- HELPER: RENDER VISUAL BARS & GLOW CARDS ---
+def render_glowing_bars(series, title_text="Pitch Distribution"):
     st.write(f"### {title_text}")
     if series.empty:
         st.info("No data available for visual breakdown.")
         return
-    
-    # Render horizontal progress bars with animated edge highlights
     for pitch_type, pct in series.items():
         st.markdown(f"**{pitch_type}** ({pct:.1f}%)")
-        st.progress(min(int(pct), 100))
+        st.markdown(f"""
+        <div class="glow-bar-container">
+            <div class="glow-bar-fill" style="width: {min(max(pct, 2), 100)}%;"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-def render_circular_rings(series):
+def render_glowing_metric_cards(series, title_text="0-0 Usage Breakdown"):
+    st.write(f"### {title_text}")
     if series.empty:
+        st.info("No data available.")
         return
     cols = st.columns(min(len(series), 3))
     for idx, (pitch_type, pct) in enumerate(series.items()):
         with cols[idx % len(cols)]:
-            st.metric(label=f"🎯 {pitch_type}", value=f"{pct:.1f}%")
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>{pitch_type}</h3>
+                <h2>{pct:.1f}%</h2>
+            </div>
+            """, unsafe_allow_html=True)
 
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
@@ -214,25 +262,21 @@ if mode == "Our Pitcher Tracker":
             
             if len(pitcher_df) > 0:
                 col_a, col_b = st.columns(2)
-                
                 with col_a:
                     mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                    render_visual_mix(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
-                    
+                    render_glowing_bars(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
                 with col_b:
-                    st.write("### 🎯 0-0 Pitch Usage")
                     zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
                     if not zero_zero.empty:
                         zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
-                        render_circular_rings(zz_mix)
+                        render_glowing_metric_cards(zz_mix, title_text="🎯 0-0 Pitch Usage")
                     else:
                         st.info("No 0-0 pitches logged yet.")
 
-                st.write("### 🚨 2-Strike Putaway Tendencies")
-                two_strike_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
-                if not two_strike_df.empty:
-                    ts_mix = two_strike_df["pitch_type"].value_counts(normalize=True) * 100
-                    render_visual_mix(ts_mix, title_text="Putaway Bar Breakdown")
+                ts_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                if not ts_df.empty:
+                    ts_mix = ts_df["pitch_type"].value_counts(normalize=True) * 100
+                    render_glowing_bars(ts_mix, title_text="🚨 2-Strike Putaway Bar Breakdown")
                 else:
                     st.info("No 2-strike counts logged yet.")
 
@@ -259,31 +303,24 @@ if mode == "Our Pitcher Tracker":
                 st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
 
                 st.write("### 📊 Pitch Type % Breakdown by Count")
-                count_pitch_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index") * 100
-                st.dataframe(count_pitch_table.round(1).astype(str) + '%')
+                st.dataframe(pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%')
 
                 st.write("### 📊 Batted Ball Profile & Pitch Breakdown")
                 in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
                 if not in_play_df.empty:
-                    c_col1, c_col2 = st.columns(2)
-                    with c_col1:
-                        st.write("**Contact Types (% by Pitch Type)**")
-                        contact_table = pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index") * 100
-                        st.dataframe(contact_table.round(1).astype(str) + '%')
-                    with c_col2:
-                        st.write("**Hit Outcomes (% by Pitch Type)**")
-                        hit_table = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index") * 100
-                        st.dataframe(hit_table.round(1).astype(str) + '%')
-                else:
-                    st.info("No balls in play logged yet.")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.write("**Contact Types**")
+                        st.dataframe(pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index").mul(100).round(1).astype(str) + '%')
+                    with c2:
+                        st.write("**Hit Outcomes**")
+                        st.dataframe(pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1).astype(str) + '%')
         else:
             st.info("No pitches logged for our pitchers yet.")
-    else:
-        st.info("No pitch data logged yet today.")
 
 elif mode == "Our Pitching Coach Dashboard":
     st.header("📋 Our Pitching Coach Dashboard")
-    st.write("Real-time data, diagnostic feedback, and matchup breakdown for our pitching staff.")
+    st.write("Real-time visual diagnostic feedback, 1st-pitch strike percentages, and pitch mix realties for our pitching staff.")
     
     auto_refresh_coach = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False, key="coach_refresh")
     
@@ -293,10 +330,20 @@ elif mode == "Our Pitching Coach Dashboard":
             coach_opp = st.selectbox("Select Our Pitcher to Review", our_df["pitcher"].unique(), key="coach_pitcher_select")
             coach_pitcher_df = our_df[our_df["pitcher"] == coach_opp]
             
-            st.metric("Total Pitches Thrown", len(coach_pitcher_df))
+            total_pitches = len(coach_pitcher_df)
+            st.metric("Total Pitches Thrown", total_pitches)
+            
+            # --- 1ST PITCH STRIKE PERCENTAGE CALCULATION ---
+            fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
+            if not fp_df.empty:
+                fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                fp_strike_pct = (fp_strikes / len(fp_df)) * 100
+                st.metric("🎯 1st-Pitch Strike % (FPS%)", f"{fp_strike_pct:.1f}%")
+            else:
+                st.metric("🎯 1st-Pitch Strike % (FPS%)", "0.0%")
             
             st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
-            if len(coach_pitcher_df) >= 5:
+            if total_pitches >= 5:
                 mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
                 top_pitch = mix_full.idxmax()
                 top_pct = mix_full.max()
@@ -316,24 +363,22 @@ elif mode == "Our Pitching Coach Dashboard":
                 * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
                 """)
             else:
-                st.info("Log at least 5 pitches to unlock automated dugout coaching recommendations.")
+                st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
             
             col_x, col_y = st.columns(2)
             with col_x:
                 mix = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_visual_mix(mix, title_text="Overall Pitch Mix")
+                render_glowing_bars(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
             with col_y:
-                st.write("### 🎯 0-0 Pitch Usage")
                 coach_zz = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not coach_zz.empty:
-                    render_circular_rings(coach_zz["pitch_type"].value_counts(normalize=True) * 100)
+                    render_glowing_metric_cards(coach_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
             
-            st.write("### 🚨 2-Strike Putaway Tendencies")
             coach_ts = coach_pitcher_df[coach_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not coach_ts.empty:
-                render_visual_mix(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="2-Strike Breakdown")
+                render_glowing_bars(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Bar Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
 
@@ -358,23 +403,6 @@ elif mode == "Our Pitching Coach Dashboard":
                     "Chase Count": chase_count
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
-
-            st.write("### 📊 Pitch Type % Breakdown by Count")
-            coach_count_table = pd.crosstab(coach_pitcher_df["count"], coach_pitcher_df["pitch_type"], normalize="index") * 100
-            st.dataframe(coach_count_table.round(1).astype(str) + '%')
-
-            if "batter" in coach_pitcher_df.columns:
-                st.write("### 🧢 Opponent Batter Breakdown vs This Pitcher")
-                valid_batters = [b for b in coach_pitcher_df["batter"].unique() if b != "N/A"]
-                if valid_batters:
-                    coach_batter = st.selectbox("Toggle / Select Opponent Hitter", valid_batters, key="coach_batter_select")
-                    batter_vs_df = coach_pitcher_df[coach_pitcher_df["batter"] == coach_batter]
-                    st.metric(f"Total Pitches Seen by {coach_batter}", len(batter_vs_df))
-                    if not batter_vs_df.empty:
-                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
-                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                else:
-                    st.info("No individual batter matchups logged yet.")
         else:
             st.info("No pitches logged for our pitchers yet.")
             
@@ -521,43 +549,19 @@ elif mode == "Opponent Pitcher Scout":
             col_x, col_y = st.columns(2)
             with col_x:
                 mix = opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_visual_mix(mix, title_text="Overall Pitch Mix")
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
             with col_y:
-                st.write("### 🎯 0-0 Pitch Usage")
                 opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
                 if not opp_zz.empty:
-                    render_circular_rings(opp_zz["pitch_type"].value_counts(normalize=True) * 100)
+                    render_glowing_metric_cards(opp_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
             
-            st.write("### 🚨 2-Strike Putaway Tendencies")
             opp_ts = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not opp_ts.empty:
-                render_visual_mix(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
+                render_glowing_bars(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
-
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
-            metrics_rows = []
-            for p_type in opp_pitcher_df["pitch_type"].unique():
-                p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
-                total_p = len(p_sub)
-                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                
-                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                
-                metrics_rows.append({
-                    "Pitch Type": p_type,
-                    "Total Thrown": total_p,
-                    "Called Strike %": f"{cs_pct:.1f}%",
-                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                    "Chase Count": chase_count
-                })
-            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -597,12 +601,11 @@ else:
             col_x, col_y = st.columns(2)
             with col_x:
                 mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_visual_mix(mix, title_text="Overall Pitch Mix")
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
             with col_y:
-                st.write("### 🎯 0-0 Pitch Usage")
                 deck_zz_show = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
                 if not deck_zz_show.empty:
-                    render_circular_rings(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100)
+                    render_glowing_metric_cards(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
         else:
@@ -630,4 +633,4 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.sidebar.success("Game data cleared successfully!")
         st.rerun()
     except Exception as e:
-        st.sidebar.error(f"Error clearing data: {e}")
+        st.sidebar.error(f"Error insecure deleting: {e}")
