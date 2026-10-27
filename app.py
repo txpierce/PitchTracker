@@ -91,16 +91,6 @@ if "opp_scout_strikes" not in st.session_state:
 if "opp_scout_batter_index" not in st.session_state:
     st.session_state.opp_scout_batter_index = 0
 
-# Initialize Bullpen Click Coordinates in Session State if missing
-if "bp_target_x" not in st.session_state:
-    st.session_state.bp_target_x = 0.0
-if "bp_target_y" not in st.session_state:
-    st.session_state.bp_target_y = 2.0
-if "bp_actual_x" not in st.session_state:
-    st.session_state.bp_actual_x = 0.0
-if "bp_actual_y" not in st.session_state:
-    st.session_state.bp_actual_y = 2.0
-
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
 def load_data():
@@ -838,8 +828,8 @@ elif mode == "Hitter On-Deck Cheat Sheet":
         st.rerun()
 
 else:
-    st.header("🎯 Bullpen Charting & Command Analysis")
-    st.write("Chart bullpen sessions and analyze pitch totals, overall strike percentages, and pitch-specific command maps.")
+    st.header("🎯 Bullpen Charting & Analysis")
+    st.write("Chart bullpen sessions quickly by recording pitch type and result (Strike/Ball), tracking total volume, and viewing strike percentages by pitch type.")
     
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Bullpen Pitcher Control")
@@ -856,19 +846,18 @@ else:
     else:
         current_bp_pitcher = selected_bp_option
 
-    with st.form("bullpen_form_v4", clear_on_submit=True):
+    with st.form("bullpen_form_v5", clear_on_submit=True):
         st.write(f"**Logging Bullpen Session for:** `{current_bp_pitcher}`")
         
         bp_col1, bp_col2 = st.columns(2)
         with bp_col1:
-            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v4")
+            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v5")
         with bp_col2:
-            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v4")
+            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v5")
             
-        # Keep underlying data logging clean using default center coordinates
-        bp_submitted_v4 = st.form_submit_button("Log Pitch to Session 🎯")
+        bp_submitted_v5 = st.form_submit_button("Log Pitch to Session 🎯")
         
-        if bp_submitted_v4:
+        if bp_submitted_v5:
             try:
                 supabase.table("pitch_logs").insert({
                     "mode": "Bullpen Charting",
@@ -877,8 +866,8 @@ else:
                     "count": "0-0",
                     "pitch_type": bp_pitch_type,
                     "result": bp_result,
-                    "contact_type": "0.0,2.0", 
-                    "hit_type": "0.0,2.0"      
+                    "contact_type": "N/A", 
+                    "hit_type": "N/A"      
                 }).execute()
                 st.success(f"Logged {bp_pitch_type} ({bp_result}) successfully!")
                 st.cache_data.clear()
@@ -901,7 +890,7 @@ else:
             st.error(f"Error undoing bullpen pitch: {e}")
 
     st.markdown("---")
-    st.subheader("📊 Bullpen Session Analytics & Command Maps")
+    st.subheader("📊 Bullpen Session Analytics")
     
     if not df.empty and "mode" in df.columns:
         bp_df = df[df["mode"] == "Bullpen Charting"]
@@ -939,62 +928,6 @@ else:
                     "Strike %": f"{p_strike_pct:.1f}%"
                 })
             st.dataframe(pd.DataFrame(bp_metrics_rows), hide_index=True)
-            
-            st.markdown("---")
-            st.subheader("🎨 Command Target vs. Actual Strike Zone Plot")
-            st.info("🔴 **Red Dots:** Intended Target | 🔵 **Blue Dots:** Actual Location")
-            
-            plot_data = []
-            for idx, row in pitcher_bp_df.iterrows():
-                try:
-                    t_coords = str(row["contact_type"]).split(",")
-                    a_coords = str(row["hit_type"]).split(",")
-                    if len(t_coords) == 2 and len(a_coords) == 2:
-                        plot_data.append({
-                            "Pitcher": row["pitcher"],
-                            "Pitch Type": row["pitch_type"],
-                            "X": float(t_coords[0]),
-                            "Y": float(t_coords[1]),
-                            "Type": "Target (Intended)"
-                        })
-                        plot_data.append({
-                            "Pitcher": row["pitcher"],
-                            "Pitch Type": row["pitch_type"],
-                            "X": float(a_coords[0]),
-                            "Y": float(a_coords[1]),
-                            "Type": "Actual (Result)"
-                        })
-                except:
-                    continue
-                    
-            if plot_data:
-                plot_df = pd.DataFrame(plot_data)
-                
-                selected_plot_pitch = st.selectbox("Filter Command Map by Pitch Type", ["All Pitches"] + list(pitcher_bp_df["pitch_type"].unique()))
-                if selected_plot_pitch != "All Pitches":
-                    plot_df = plot_df[plot_df["Pitch Type"] == selected_plot_pitch]
-                
-                fig_bp = px.scatter(
-                    plot_df, x="X", y="Y", color="Type", symbol="Type",
-                    color_discrete_map={"Target (Intended)": "#ff4b4b", "Actual (Result)": "#1c83e1"},
-                    range_x=[-2.0, 2.0], range_y=[0.0, 4.0],
-                    title=f"Command Map for {selected_bp_view} ({selected_plot_pitch})"
-                )
-                
-                # Strike zone box and home plate
-                fig_bp.add_shape(type="rect", x0=-0.83, y0=1.5, x1=0.83, y1=3.5, line=dict(color="white", width=2))
-                fig_bp.add_shape(type="path", path="M -0.7 0.7 L 0.7 0.7 L 0.7 0.5 L 0.0 0.2 L -0.7 0.5 Z", line=dict(color="gray", width=2))
-
-                fig_bp.update_layout(
-                    xaxis_title="Horizontal Location (Glove ◄ ► Arm-side)",
-                    yaxis_title="Vertical Location (Height)",
-                    plot_bgcolor="#1e1e2f",
-                    paper_bgcolor="#1e1e2f",
-                    font_color="white"
-                )
-                st.plotly_chart(fig_bp, use_container_width=True)
-            else:
-                st.info("Log pitches to generate command maps.")
         else:
             st.info("No bullpen sessions logged yet.")
     else:
