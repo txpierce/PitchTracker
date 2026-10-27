@@ -287,13 +287,15 @@ if mode == "Our Pitcher Tracker":
                     swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                     total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                     chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                    ball_count = len(p_sub[p_sub["result"] == "Ball"])
+                    in_play_count = len(p_sub[p_sub["result"] == "In Play"])
                     total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                     
                     cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                     whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                     total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                     
-                    st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                    st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
                     st.markdown(f"""
                     * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
                     <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
@@ -456,13 +458,15 @@ elif mode == "Our Pitching Coach Dashboard":
                 swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                 total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                ball_count = len(p_sub[p_sub["result"] == "Ball"])
+                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
                 total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 
                 cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
                 st.markdown(f"""
                 * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
                 <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
@@ -706,13 +710,15 @@ elif mode == "Opponent Pitcher Scout":
                 swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                 total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                ball_count = len(p_sub[p_sub["result"] == "Ball"])
+                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
                 total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 
                 cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
                 st.markdown(f"""
                 * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
                 <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
@@ -797,13 +803,15 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                 swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                 total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                ball_count = len(p_sub[p_sub["result"] == "Ball"])
+                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
                 total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 
                 cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
                 total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Chase Count: {chase_count})")
+                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
                 st.markdown(f"""
                 * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
                 <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
