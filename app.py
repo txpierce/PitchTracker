@@ -153,11 +153,11 @@ if mode == "Our Pitcher Tracker":
         if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
             st.session_state.our_pitcher_batter_index = 0
             
+        # Removed widget key so it reliably updates its index from session state on every rerun
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
-            index=st.session_state.our_pitcher_batter_index,
-            key="our_mode_hitter_override_widget"
+            index=st.session_state.our_pitcher_batter_index
         )
         
         new_override_index = opp_batters_list.index(manual_override_opp)
@@ -212,7 +212,7 @@ if mode == "Our Pitcher Tracker":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
-                    # Safely cycle through lineup indices 0 through 8, then back to 0
+                    # Cycles through Batter 1 to 9, then loops back to 1 (index 0)
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
@@ -463,11 +463,11 @@ elif mode == "Opponent Pitcher Scout":
         if st.session_state.opp_scout_batter_index >= len(our_batters_list):
             st.session_state.opp_scout_batter_index = 0
             
+        # Removed widget key so it reliably updates its index from session state on every rerun
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
-            index=st.session_state.opp_scout_batter_index,
-            key="opp_scout_hitter_override_widget"
+            index=st.session_state.opp_scout_batter_index
         )
         
         selected_index_our = our_batters_list.index(manual_override_our)
@@ -521,7 +521,7 @@ elif mode == "Opponent Pitcher Scout":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
-                    # Safely cycle through lineup indices 0 through 8, then back to 0
+                    # Cycles through Batter 1 to 9, then loops back to 1 (index 0)
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
