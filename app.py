@@ -333,7 +333,73 @@ elif mode == "Our Pitching Coach Dashboard":
             coach_pitcher_df = our_df[our_df["pitcher"] == coach_opp]
             
             total_pitches = len(coach_pitcher_df)
-            st.metric("Total Pitches Thrown", total_pitches)
+            
+            # --- PITCH SMART REST CALCULATOR HELPER ---
+            selected_age_group = st.selectbox("Select Pitcher Age Group (USA Pitch Smart)", [
+                "7–8", "9–10", "11–12", "13–14", "15–16", "17–18", "19–22"
+            ], key="pitch_smart_age")
+
+            def get_pitch_smart_rest(age_group, count):
+                if count == 0:
+                    return "0 Days Rest", "Daily Max: See Table"
+                
+                if age_group == "7–8":
+                    max_p = 50
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    else: rest = "Exceeds Daily Maximum!"
+                elif age_group == "9–10":
+                    max_p = 75
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    elif count <= 65: rest = "3 Days Rest (51–65)"
+                    else: rest = "4 Days Rest (66+)"
+                elif age_group in ["11–12", "13–14"]:
+                    max_p = 85 if age_group == "11–12" else 95
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    elif count <= 65: rest = "3 Days Rest (51–65)"
+                    else: rest = "4 Days Rest (66+)"
+                elif age_group == "15–16":
+                    max_p = 95
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 75: rest = "3 Days Rest (61–75)"
+                    else: rest = "4 Days Rest (76+)"
+                elif age_group == "17–18":
+                    max_p = 105
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 80: rest = "3 Days Rest (61–80)"
+                    else: rest = "4 Days Rest (81+)"
+                else: # 19–22
+                    max_p = 120
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 80: rest = "3 Days Rest (61–80)"
+                    else: rest = "4 Days Rest (81–105+)"
+                
+                return rest, f"Daily Max: {max_p}"
+
+            rest_req, max_limit_str = get_pitch_smart_rest(selected_age_group, total_pitches)
+
+            col_stat1, col_stat2 = st.columns(2)
+            with col_stat1:
+                st.metric("Total Pitches Thrown", total_pitches)
+            with col_stat2:
+                st.markdown(f"""
+                <div class="metric-card" style="padding: 10px;">
+                    <h3>⚾ Pitch Smart Rest Required</h3>
+                    <h2 style="font-size: 20px; color: #00ccff;">{rest_req}</h2>
+                    <p style="color: #a0a0c0; font-size: 12px; margin: 0;">({max_limit_str} for {selected_age_group} yrs)</p>
+                </div>
+                """, unsafe_allow_html=True)
             
             col_m1, col_m2 = st.columns(2)
             
@@ -834,7 +900,6 @@ else:
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Bullpen Pitcher Control")
     
-    # --- DEDICATED BULLPEN CLEAR DATA BUTTON ---
     if st.sidebar.button("🗑️ Clear Bullpen Data & Start New"):
         try:
             supabase.table("pitch_logs").delete().eq("mode", "Bullpen Charting").execute()
@@ -925,7 +990,6 @@ else:
                 
             st.write("### 📈 Strike % by Pitch Type")
             
-            # Render using glowing visual bars matching the coach dashboard style
             for p_type in pitcher_bp_df["pitch_type"].unique():
                 p_sub = pitcher_bp_df[pitcher_bp_df["pitch_type"] == p_type]
                 p_total = len(p_sub)
