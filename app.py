@@ -427,7 +427,6 @@ elif mode == "Our Pitching Coach Dashboard":
                     with hc2:
                         st.write("**Result Breakdown by Pitch**")
                         
-                    # Loop through each individual pitch type and render its own standalone breakdown table
                     for pt in hitter_matchup_df["pitch_type"].unique():
                         pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
                         
@@ -675,6 +674,56 @@ else:
             
             st.metric("Total Pitches Charted", len(deck_pitcher_df))
             
+            # --- NEW: INDIVIDUAL HITTER REVIEW & STRATEGIC APPROACH ---
+            st.markdown("---")
+            st.subheader("👤 Individual Hitter Matchup & At-Bat Approach")
+            
+            deck_hitters = list(deck_pitcher_df["batter"].unique()) if "batter" in deck_pitcher_df.columns else []
+            deck_hitter_options = deck_hitters if deck_hitters else our_batters_list
+            
+            if deck_hitter_options:
+                selected_deck_hitter = st.selectbox("Select Our Hitter to Review Matchup", deck_hitter_options, key="deck_hitter_review_select")
+                hitter_scout_df = deck_pitcher_df[deck_pitcher_df["batter"] == selected_deck_hitter]
+                
+                if not hitter_scout_df.empty:
+                    st.metric(f"Total Pitches Seen by {selected_deck_hitter}", len(hitter_scout_df))
+                    
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        st.write("**Pitch Mix Faced**")
+                        h_mix_deck = hitter_scout_df["pitch_type"].value_counts(normalize=True) * 100
+                        render_glowing_bars(h_mix_deck, title_text="Pitch Distribution")
+                    with hc2:
+                        st.write("**Result Breakdown by Pitch**")
+                    
+                    for pt in hitter_scout_df["pitch_type"].unique():
+                        pt_df = hitter_scout_df[hitter_scout_df["pitch_type"] == pt]
+                        
+                        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
+                        take_ball = len(pt_df[pt_df["result"] == "Ball"])
+                        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
+                        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
+                        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
+                        
+                        single_pitch_df = pd.DataFrame([{
+                            "Take for Strike": take_strike,
+                            "Take for Ball": take_ball,
+                            "Chase for Strike": chase_strike,
+                            "Foul Ball": foul_ball,
+                            "Put in Play": put_in_play
+                        }])
+                        
+                        st.markdown(f"**📌 Pitch: {pt}** (Total Seen: {len(pt_df)})")
+                        st.dataframe(single_pitch_df, hide_index=True)
+                    
+                    st.write("**Detailed At-Bat Log History**")
+                    st.dataframe(hitter_scout_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
+                else:
+                    st.info(f"No logged pitch data found for {selected_deck_hitter} against {deck_opp}.")
+            else:
+                st.info("No our batters available for review.")
+
+            st.markdown("---")
             st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
             if len(deck_pitcher_df) >= 3:
                 deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
