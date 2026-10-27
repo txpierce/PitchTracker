@@ -527,4 +527,158 @@ elif mode == "Opponent Pitcher Scout":
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
                         if st.session_state.opp_scout_strikes < 2:
-                            st.session_state.opp_scout_strikes +=
+                            st.session_state.opp_scout_strikes += 1
+                    elif result == "Ball":
+                        if st.session_state.opp_scout_balls < 3:
+                            st.session_state.opp_scout_balls += 1
+                    elif result in ["Foul", "Chase Contact / Foul"]:
+                        if st.session_state.opp_scout_strikes < 2:
+                            st.session_state.opp_scout_strikes += 1
+                            
+                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
+                
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error logging pitch: {e}")
+
+    if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
+        try:
+            recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Opponent Pitcher Scout").order("timestamp", desc=True).limit(1).execute()
+            if recent_res.data:
+                last_id = recent_res.data[0]["id"]
+                supabase.table("pitch_logs").delete().eq("id", last_id).execute()
+                st.cache_data.clear()
+                st.success("Successfully deleted the last logged pitch!")
+                st.rerun()
+            else:
+                st.warning("No pitches to undo.")
+        except Exception as e:
+            st.error(f"Error undoing pitch: {e}")
+
+    st.markdown("---")
+    st.subheader("💡 Instant Hitter Cheat Sheet & Matchup Breakdown")
+    
+    if not df.empty and "mode" in df.columns:
+        opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        opp_df = opp_df.sort_values(by="timestamp", ascending=True)
+        
+        if not opp_df.empty:
+            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_pitcher")
+            opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
+            
+            st.metric("Total Pitches Charted", len(opp_pitcher_df))
+            
+            col_x, col_y = st.columns(2)
+            with col_x:
+                mix = opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
+            with col_y:
+                opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
+                if not opp_zz.empty:
+                    render_glowing_metric_cards(opp_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+            
+            opp_ts = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not opp_ts.empty:
+                render_glowing_bars(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
+            else:
+                st.info("No 2-strike counts logged yet.")
+
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
+            metrics_rows = []
+            for p_type in opp_pitcher_df["pitch_type"].unique():
+                p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
+                
+                metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Total Strike %": f"{total_strike_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+        else:
+            st.info("No opponent pitches charted yet.")
+    else:
+        st.info("No pitch data logged yet.")
+
+else:
+    st.header("🧢 Hitter On-Deck Cheat Sheet")
+    st.write("Dedicated view for hitters to review full opponent pitcher scouting, count breakdowns, and live game-plan action cards.")
+    
+    auto_refresh = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False)
+    
+    if not df.empty and "mode" in df.columns:
+        opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        if not opp_df.empty:
+            deck_opp = st.selectbox("Select Current Opponent Pitcher", opp_df["pitcher"].unique(), key="deck_opp_select")
+            deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
+            
+            st.metric("Total Pitches Charted", len(deck_pitcher_df))
+            
+            st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
+            if len(deck_pitcher_df) >= 3:
+                deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                fav_00 = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_zz.empty else "Fastball"
+                fav_00_pct = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_zz.empty else 50.0
+
+                deck_ts = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                putaway_pitch = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_ts.empty else "Breaking Ball"
+                putaway_pct = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_ts.empty else 50.0
+
+                st.success(f"""
+                * 🟢 **0-0 Plan (First-Pitch Hunt):** Expect a **{fav_00}** (`{fav_00_pct:.1f}%` of the time on 0-0). If it's over the plate, put a good swing on it early!
+                * ⚠️ **2-Strike Trap Notice:** Watch out for the **{putaway_pitch}** (`{putaway_pct:.1f}%` in putaway counts). Expand your zone discipline or protect the plate.
+                """)
+            else:
+                st.info("Waiting for more opponent pitches to generate live dugout game plan cards.")
+
+            col_x, col_y = st.columns(2)
+            with col_x:
+                mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
+            with col_y:
+                deck_zz_show = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_zz_show.empty:
+                    render_glowing_metric_cards(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+        else:
+            st.info("No opponent pitches charted yet.")
+    else:
+        st.info("No pitch data logged yet today.")
+        
+    if auto_refresh:
+        time.sleep(5)
+        st.cache_data.clear()
+        st.rerun()
+
+# Sidebar Reset Button
+st.sidebar.markdown("---")
+st.sidebar.subheader("Game Management")
+if st.sidebar.button("🗑️ Clear Game Data / Reset"):
+    try:
+        supabase.table("pitch_logs").delete().neq("id", 0).execute()
+        st.session_state.our_pitcher_balls = 0
+        st.session_state.our_pitcher_strikes = 0
+        st.session_state.our_pitcher_batter_index = 0
+        st.session_state.opp_scout_balls = 0
+        st.session_state.opp_scout_strikes = 0
+        st.session_state.opp_scout_batter_index = 0
+        st.sidebar.success("Game data cleared successfully!")
+        st.rerun()
+    except Exception as e:
+        st.sidebar.error(f"Error clearing data: {e}")
