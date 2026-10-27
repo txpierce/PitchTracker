@@ -843,59 +843,6 @@ else:
     else:
         current_bp_pitcher = selected_bp_option
 
-    with st.form("bullpen_form", clear_on_submit=True):
-        st.write(f"**Logging Bullpen Session for:** `{current_bp_pitcher}`")
-        
-        bp_col1, bp_col2 = st.columns(2)
-        with bp_col1:
-            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type")
-        with bp_col2:
-            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result")
-            
-        st.markdown("---")
-        st.write("**📍 Strike Zone Targeting (Grid Coordinates: -1.5 to 1.5)**")
-        st.info("Configure where the pitch was intended to be thrown (Target) vs. where it actually landed (Actual). Center of plate is X=0, Y=2.0.")
-        
-        tc_col1, tc_col2 = st.columns(2)
-        with tc_col1:
-            st.markdown("**🎯 Intended Target Location (Red Dot)**")
-            target_x = st.slider("Target X (Horizontal: Left [-1.5] to Right [1.5])", -1.5, 1.5, 0.0, 0.1, key="t_x")
-            target_y = st.slider("Target Y (Vertical: Low [0.5] to High [3.5])", 0.5, 3.5, 2.0, 0.1, key="t_y")
-            
-        with tc_col2:
-            st.markdown("**📍 Actual Pitch Location (Blue Dot)**")
-            actual_x = st.slider("Actual X (Horizontal: Left [-1.5] to Right [1.5])", -1.5, 1.5, 0.0, 0.1, key="a_x")
-            actual_y = st.slider("Actual Y (Vertical: Low [0.5] to High [3.5])", 0.5, 3.5, 2.0, 0.1, key="a_y")
-            
-        bp_submitted = st.form_submit_button("Log Bullpen Pitch 🎯")
-        
-        if bp_submitted:
-            try:
-                supabase.table("pitch_logs").insert({
-                    "mode": "Bullpen Charting",
-                    "pitcher": current_bp_pitcher,
-                    "batter": "Bullpen Session",
-                    "count": "0-0",
-                    "pitch_type": bp_pitch_type,
-                    "result": bp_result,
-                    "contact_type": str(target_x), # Storing target X temporarily
-                    "hit_type": str(target_y)      # Storing target Y temporarily
-                }).execute()
-                # Also store exact actual coordinates in a separate table column if desired, or map via a custom schema. 
-                # To ensure robust compatibility without altering existing db schema tables, we can store target/actual in metadata columns.
-                # Let's write a clean implementation storing target in contact_type/hit_type or saving them directly if columns exist.
-                # Since Supabase table has standard columns, let's store target_x and target_y as floats if columns exist, 
-                # or store actual in standard fields and target in custom attributes. 
-                # Better yet, let's insert into a dedicated supabase table or include target in result string if needed.
-                # Wait, let's check how we can cleanly log both target and actual coordinates:
-            except Exception as e:
-                st.error(f"Error logging bullpen pitch: {e}")
-
-    # Let's refine the Bullpen logging storage cleanly using JSON or dedicated fields:
-    # Since our table has: mode, pitcher, batter, count, pitch_type, result, contact_type, hit_type
-    # We can store: contact_type = f"Target: {target_x},{target_y}", hit_type = f"Actual: {actual_x},{actual_y}"
-    # This keeps your existing Supabase table schema 100% intact without needing database migrations!
-
     with st.form("bullpen_form_v2", clear_on_submit=True):
         st.write(f"**Logging Bullpen Session for:** `{current_bp_pitcher}`")
         
@@ -907,6 +854,7 @@ else:
             
         st.markdown("---")
         st.write("**📍 Strike Zone Coordinates**")
+        st.info("Touch/Select where the pitcher intended to throw (Target) vs. where the pitch actually went (Actual). Plate center is X=0, Y=2.0.")
         
         tc_col1, tc_col2 = st.columns(2)
         with tc_col1:
@@ -997,14 +945,12 @@ else:
             st.subheader("🎨 Command Target vs. Actual Location Plot")
             st.info("🔴 **Red Dots:** Intended Target | 🔵 **Blue Dots:** Actual Location")
             
-            # Parse coordinates for plotting
             plot_data = []
             for idx, row in pitcher_bp_df.iterrows():
                 try:
                     t_coords = str(row["contact_type"]).split(",")
                     a_coords = str(row["hit_type"]).split(",")
                     if len(t_coords) == 2 and len(a_coords) == 2:
-                        # Target point (Red)
                         plot_data.append({
                             "Pitcher": row["pitcher"],
                             "Pitch Type": row["pitch_type"],
@@ -1012,7 +958,6 @@ else:
                             "Y": float(t_coords[1]),
                             "Type": "Target (Intended)"
                         })
-                        # Actual point (Blue)
                         plot_data.append({
                             "Pitcher": row["pitcher"],
                             "Pitch Type": row["pitch_type"],
@@ -1026,7 +971,6 @@ else:
             if plot_data:
                 plot_df = pd.DataFrame(plot_data)
                 
-                # Filter by pitch type option if desired
                 selected_plot_pitch = st.selectbox("Filter Command Map by Pitch Type", ["All Pitches"] + list(pitcher_bp_df["pitch_type"].unique()))
                 if selected_plot_pitch != "All Pitches":
                     plot_df = plot_df[plot_df["Pitch Type"] == selected_plot_pitch]
@@ -1038,7 +982,6 @@ else:
                     title=f"Command Map for {selected_bp_view} ({selected_plot_pitch})"
                 )
                 
-                # Draw Strike Zone box outline
                 fig_bp.add_shape(type="rect", x0=-0.83, y0=1.5, x1=0.83, y1=3.5, line=dict(color="white", width=2))
                 fig_bp.update_layout(
                     xaxis_title="Horizontal Location (Plate Width)",
