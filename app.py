@@ -280,7 +280,7 @@ if mode == "Our Pitcher Tracker":
                 else:
                     st.info("No 2-strike counts logged yet.")
 
-                st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+                st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
                 metrics_rows = []
                 for p_type in pitcher_df["pitch_type"].unique():
                     p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
@@ -289,15 +289,18 @@ if mode == "Our Pitcher Tracker":
                     swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                     total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                     chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                    total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                     
                     cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                     whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                    total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                     
                     metrics_rows.append({
                         "Pitch Type": p_type,
                         "Total Thrown": total_p,
                         "Called Strike %": f"{cs_pct:.1f}%",
                         "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                        "Total Strike %": f"{total_strike_pct:.1f}%",
                         "Chase Count": chase_count
                     })
                 st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
@@ -382,7 +385,7 @@ elif mode == "Our Pitching Coach Dashboard":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
             metrics_rows = []
             for p_type in coach_pitcher_df["pitch_type"].unique():
                 p_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == p_type]
@@ -391,15 +394,18 @@ elif mode == "Our Pitching Coach Dashboard":
                 swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
                 total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                 
                 cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
                 whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
                 
                 metrics_rows.append({
                     "Pitch Type": p_type,
                     "Total Thrown": total_p,
                     "Called Strike %": f"{cs_pct:.1f}%",
                     "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Total Strike %": f"{total_strike_pct:.1f}%",
                     "Chase Count": chase_count
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
@@ -588,6 +594,31 @@ elif mode == "Opponent Pitcher Scout":
                 render_glowing_bars(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
+
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
+            metrics_rows = []
+            for p_type in opp_pitcher_df["pitch_type"].unique():
+                p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
+                
+                metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Total Strike %": f"{total_strike_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
         else:
             st.info("No opponent pitches charted yet.")
     else:
