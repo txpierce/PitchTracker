@@ -846,18 +846,18 @@ else:
     else:
         current_bp_pitcher = selected_bp_option
 
-    with st.form("bullpen_form_v5", clear_on_submit=True):
+    with st.form("bullpen_form_v6", clear_on_submit=True):
         st.write(f"**Logging Bullpen Session for:** `{current_bp_pitcher}`")
         
         bp_col1, bp_col2 = st.columns(2)
         with bp_col1:
-            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v5")
+            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v6")
         with bp_col2:
-            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v5")
+            bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v6")
             
-        bp_submitted_v5 = st.form_submit_button("Log Pitch to Session 🎯")
+        bp_submitted_v6 = st.form_submit_button("Log Pitch to Session 🎯")
         
-        if bp_submitted_v5:
+        if bp_submitted_v6:
             try:
                 supabase.table("pitch_logs").insert({
                     "mode": "Bullpen Charting",
@@ -914,24 +914,52 @@ else:
                 """, unsafe_allow_html=True)
                 
             st.write("### 📈 Strike % by Pitch Type")
-            bp_metrics_rows = []
+            
+            # Calculate metrics per pitch type for the bar graph
+            bp_chart_data = []
             for p_type in pitcher_bp_df["pitch_type"].unique():
                 p_sub = pitcher_bp_df[pitcher_bp_df["pitch_type"] == p_type]
                 p_total = len(p_sub)
                 p_strikes = len(p_sub[p_sub["result"] == "Strike"])
                 p_strike_pct = (p_strikes / p_total * 100) if p_total > 0 else 0.0
-                
-                bp_metrics_rows.append({
+                bp_chart_data.append({
                     "Pitch Type": p_type,
-                    "Total Thrown": p_total,
-                    "Strikes": p_strikes,
-                    "Strike %": f"{p_strike_pct:.1f}%"
+                    "Strike Pct": p_strike_pct
                 })
-            st.dataframe(pd.DataFrame(bp_metrics_rows), hide_index=True)
+            
+            if bp_chart_data:
+                bp_chart_df = pd.DataFrame(bp_chart_data)
+                
+                # Render using Plotly Express with a Blue-to-Red colorscale
+                fig_strike_bars = px.bar(
+                    bp_chart_df,
+                    x="Strike Pct",
+                    y="Pitch Type",
+                    orientation="h",
+                    text=bp_chart_df["Strike Pct"].apply(lambda val: f"{val:.1f}%"),
+                    color="Strike Pct",
+                    color_continuous_scale=["#1c83e1", "#ff4b4b"],
+                    range_x=[0, 100]
+                )
+                
+                fig_strike_bars.update_traces(textposition="outside")
+                fig_strike_bars.update_layout(
+                    xaxis_title="Strike Percentage (%)",
+                    yaxis_title="",
+                    coloraxis_showscale=False,
+                    plot_bgcolor="#1e1e2f",
+                    paper_bgcolor="#1e1e2f",
+                    font_color="white",
+                    height=250,
+                    margin=dict(l=10, r=20, t=10, b=10)
+                )
+                st.plotly_chart(fig_strike_bars, use_container_width=True)
+            else:
+                st.info("No pitch type data available for strike percentage graph.")
         else:
             st.info("No bullpen sessions logged yet.")
     else:
-        st.info("No pitch data logged yet.")
+    st.info("No pitch data logged yet.")
 
 # Sidebar Reset Button
 st.sidebar.markdown("---")
