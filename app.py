@@ -251,7 +251,7 @@ if mode == "Our Pitcher Tracker":
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
         if not our_df.empty:
-            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique(), key="view_our_pitcher")
+            selected_view_pitcher = st.selectbox("Select Pitcher to Review", our_df["pitcher"].unique(), key="view_our_pitcher")
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
@@ -405,7 +405,7 @@ elif mode == "Our Pitching Coach Dashboard":
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
 
-            # --- INDIVIDUAL HITTER MATCHUP BREAKDOWN ---
+            # --- INDIVIDUAL HITTER MATCHUP BREAKDOWN WITH CUSTOM RESULT TABLE ---
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & History Breakdown")
             
@@ -425,8 +425,29 @@ elif mode == "Our Pitching Coach Dashboard":
                         h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
                         render_glowing_bars(h_mix, title_text="Hitter Pitch Mix Faced")
                     with hc2:
-                        st.write("**Result Breakdown**")
-                        st.dataframe(hitter_matchup_df["result"].value_counts().reset_index().rename(columns={"index": "Result", "count": "Count"}))
+                        st.write("**Result Breakdown by Pitch Type**")
+                        
+                        # Build summary result breakdown grouped by pitch type
+                        result_summary_rows = []
+                        for pt in hitter_matchup_df["pitch_type"].unique():
+                            pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
+                            
+                            take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
+                            take_ball = len(pt_df[pt_df["result"] == "Ball"])
+                            chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
+                            foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
+                            put_in_play = len(pt_df[pt_df["result"] == "In Play"])
+                            
+                            result_summary_rows.append({
+                                "Pitch Type": pt,
+                                "Take for Strike": take_strike,
+                                "Take for Ball": take_ball,
+                                "Chase for Strike": chase_strike,
+                                "Foul Ball": foul_ball,
+                                "Put in Play": put_in_play
+                            })
+                        
+                        st.dataframe(pd.DataFrame(result_summary_rows), hide_index=True)
                     
                     st.write("**Detailed Pitch Log History vs. Hitter**")
                     st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
