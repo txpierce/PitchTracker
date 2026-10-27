@@ -320,7 +320,7 @@ if mode == "Our Pitcher Tracker":
 
 elif mode == "Our Pitching Coach Dashboard":
     st.header("📋 Our Pitching Coach Dashboard")
-    st.write("Real-time visual diagnostic feedback, 1st-pitch strike percentages, and pitch mix realties for our pitching staff.")
+    st.write("Real-time visual diagnostic feedback, 1st-pitch strike percentages, 3-ball count frequency, and pitch mix realities for our pitching staff.")
     
     auto_refresh_coach = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False, key="coach_refresh")
     
@@ -333,14 +333,37 @@ elif mode == "Our Pitching Coach Dashboard":
             total_pitches = len(coach_pitcher_df)
             st.metric("Total Pitches Thrown", total_pitches)
             
-            # --- 1ST PITCH STRIKE PERCENTAGE CALCULATION ---
-            fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
-            if not fp_df.empty:
-                fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                fp_strike_pct = (fp_strikes / len(fp_df)) * 100
-                st.metric("🎯 1st-Pitch Strike % (FPS%)", f"{fp_strike_pct:.1f}%")
-            else:
-                st.metric("🎯 1st-Pitch Strike % (FPS%)", "0.0%")
+            # --- METRICS ROW: FPS% & 3-BALL COUNT FREQUENCY ---
+            col_m1, col_m2 = st.columns(2)
+            
+            with col_m1:
+                fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
+                if not fp_df.empty:
+                    fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    fp_strike_pct = (fp_strikes / len(fp_df)) * 100
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>{fp_strike_pct:.1f}%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>0.0%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col_m2:
+                three_ball_df = coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]
+                three_ball_pct = (len(three_ball_df) / total_pitches * 100) if total_pitches > 0 else 0.0
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>⚠️ 3-Ball Count Frequency</h3>
+                    <h2>{three_ball_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
             if total_pitches >= 5:
@@ -361,6 +384,7 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.info(f"""
                 * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
                 * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
+                * **Leverage Check:** 3-ball counts currently represent `{three_ball_pct:.1f}%` of total pitches thrown. Watch for command leakage in deep counts.
                 """)
             else:
                 st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
@@ -633,4 +657,4 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.sidebar.success("Game data cleared successfully!")
         st.rerun()
     except Exception as e:
-        st.sidebar.error(f"Error insecure deleting: {e}")
+        st.sidebar.error(f"Error clearing data: {e}")
