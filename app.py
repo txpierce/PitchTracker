@@ -26,17 +26,15 @@ mode = st.sidebar.radio("Select Mode", [
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Configurations")
 
-# 1. Our Lineup (Used when charting Opponent Pitchers / On-Deck Cheat Sheet)
 default_our_lineup = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
 our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=default_our_lineup, height=120)
 our_batters_list = [b.strip() for b in our_lineup_input.split("\n") if b.strip()]
 
-# 2. Opponent Lineup (Used when tracking Our Pitchers)
 default_opp_lineup = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
 opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=default_opp_lineup, height=120)
 opp_batters_list = [b.strip() for b in opp_lineup_input.split("\n") if b.strip()]
 
-# Initialize Session State for Counts & Lineup Indices Separately
+# Initialize Session State
 if "our_pitcher_balls" not in st.session_state:
     st.session_state.our_pitcher_balls = 0
 if "our_pitcher_strikes" not in st.session_state:
@@ -62,6 +60,26 @@ def load_data():
 
 df = load_data()
 
+# --- HELPER: RENDER VISUAL GAUGES & BARS ---
+def render_visual_mix(series, title_text="Pitch Distribution"):
+    st.write(f"### {title_text}")
+    if series.empty:
+        st.info("No data available for visual breakdown.")
+        return
+    
+    # Render horizontal progress bars with animated edge highlights
+    for pitch_type, pct in series.items():
+        st.markdown(f"**{pitch_type}** ({pct:.1f}%)")
+        st.progress(min(int(pct), 100))
+
+def render_circular_rings(series):
+    if series.empty:
+        return
+    cols = st.columns(min(len(series), 3))
+    for idx, (pitch_type, pct) in enumerate(series.items()):
+        with cols[idx % len(cols)]:
+            st.metric(label=f"🎯 {pitch_type}", value=f"{pct:.1f}%")
+
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
     
@@ -80,7 +98,6 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
-    # Manual Opponent Hitter Override for Our Pitcher Tracker
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -170,7 +187,6 @@ if mode == "Our Pitcher Tracker":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
-    # Undo Last Pitch Button
     if st.button("↩️ Undo Last Logged Pitch (Our Tracker)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Our Pitcher Tracker").order("timestamp", desc=True).limit(1).execute()
@@ -200,24 +216,23 @@ if mode == "Our Pitcher Tracker":
                 col_a, col_b = st.columns(2)
                 
                 with col_a:
-                    st.write("### Overall Pitch Mix")
                     mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                    st.dataframe(mix.round(1).astype(str) + '%')
+                    render_visual_mix(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
                     
                 with col_b:
                     st.write("### 🎯 0-0 Pitch Usage")
                     zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
                     if not zero_zero.empty:
                         zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
-                        st.dataframe(zz_mix.round(1).astype(str) + '%')
+                        render_circular_rings(zz_mix)
                     else:
                         st.info("No 0-0 pitches logged yet.")
 
-                st.write("### 🚨 2-Strike Putaway Tendencies (0-2, 1-2, 2-2, 3-2)")
+                st.write("### 🚨 2-Strike Putaway Tendencies")
                 two_strike_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
                 if not two_strike_df.empty:
                     ts_mix = two_strike_df["pitch_type"].value_counts(normalize=True) * 100
-                    st.dataframe(ts_mix.round(1).astype(str) + '%')
+                    render_visual_mix(ts_mix, title_text="Putaway Bar Breakdown")
                 else:
                     st.info("No 2-strike counts logged yet.")
 
@@ -280,7 +295,6 @@ elif mode == "Our Pitching Coach Dashboard":
             
             st.metric("Total Pitches Thrown", len(coach_pitcher_df))
             
-            # --- COACH DIAGNOSTIC FEEDBACK MODULE ---
             st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
             if len(coach_pitcher_df) >= 5:
                 mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
@@ -300,27 +314,26 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.info(f"""
                 * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
                 * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
-                * **2-Strike Putaway Check:** Monitor if 2-strike counts are leaning too heavily into predictable heat or if off-speed chase options are being utilized to finish hitters cleanly.
                 """)
             else:
                 st.info("Log at least 5 pitches to unlock automated dugout coaching recommendations.")
             
             col_x, col_y = st.columns(2)
             with col_x:
-                st.write("### Overall Pitch Mix")
-                st.dataframe((coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                mix = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_visual_mix(mix, title_text="Overall Pitch Mix")
             with col_y:
                 st.write("### 🎯 0-0 Pitch Usage")
                 coach_zz = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not coach_zz.empty:
-                    st.dataframe((coach_zz["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                    render_circular_rings(coach_zz["pitch_type"].value_counts(normalize=True) * 100)
                 else:
                     st.info("No 0-0 pitches logged.")
             
             st.write("### 🚨 2-Strike Putaway Tendencies")
             coach_ts = coach_pitcher_df[coach_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not coach_ts.empty:
-                st.dataframe((coach_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                render_visual_mix(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="2-Strike Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
 
@@ -356,44 +369,15 @@ elif mode == "Our Pitching Coach Dashboard":
                 if valid_batters:
                     coach_batter = st.selectbox("Toggle / Select Opponent Hitter", valid_batters, key="coach_batter_select")
                     batter_vs_df = coach_pitcher_df[coach_pitcher_df["batter"] == coach_batter]
-                    
                     st.metric(f"Total Pitches Seen by {coach_batter}", len(batter_vs_df))
-                    
                     if not batter_vs_df.empty:
-                        st.write("**Pitch Type % Breakdown by Count**")
                         count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
                         st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                    else:
-                        st.info("No pitches logged for this hitter yet.")
                 else:
                     st.info("No individual batter matchups logged yet.")
-            else:
-                st.info("Batter tracking column not found.")
-
-            st.write("### 🔄 Sequential Pattern Recognition")
-            coach_seq_df = coach_pitcher_df.copy()
-            coach_seq_df["next_pitch"] = coach_seq_df["pitch_type"].shift(-1)
-            coach_seq_df["next_result"] = coach_seq_df["result"].shift(-1)
-            
-            coach_fb_calls = coach_seq_df[(coach_seq_df["pitch_type"] == "Fastball") & (coach_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
-            
-            if not coach_fb_calls.empty:
-                coach_selected_trigger = st.selectbox("Select Fastball Previous Outcome", coach_fb_calls["result"].unique(), key="coach_seq_trigger")
-                coach_triggered_seq = coach_fb_calls[coach_fb_calls["result"] == coach_selected_trigger]
-                
-                if not coach_triggered_seq.empty and "next_pitch" in coach_triggered_seq.columns:
-                    st.write(f"**Follow-up pitch after Fastball -> {coach_selected_trigger}:**")
-                    coach_seq_mix = coach_triggered_seq["next_pitch"].value_counts(normalize=True) * 100
-                    st.dataframe(coach_seq_mix.round(1).astype(str) + '%')
-                else:
-                    st.info("Not enough sequential data logged yet for this pattern.")
-            else:
-                st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
             st.info("No pitches logged for our pitchers yet.")
-    else:
-        st.info("No pitch data logged yet today.")
-        
+            
     if auto_refresh_coach:
         time.sleep(5)
         st.cache_data.clear()
@@ -417,7 +401,6 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
 
-    # Opponent Scout Manual Hitter Override (uses Our Lineup)
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if our_batters_list:
@@ -508,7 +491,6 @@ elif mode == "Opponent Pitcher Scout":
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
-    # Undo Last Pitch Button for Opponent Scout
     if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
         try:
             recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Opponent Pitcher Scout").order("timestamp", desc=True).limit(1).execute()
@@ -538,20 +520,20 @@ elif mode == "Opponent Pitcher Scout":
             
             col_x, col_y = st.columns(2)
             with col_x:
-                st.write("### Overall Pitch Mix")
-                st.dataframe((opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                mix = opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_visual_mix(mix, title_text="Overall Pitch Mix")
             with col_y:
                 st.write("### 🎯 0-0 Pitch Usage")
                 opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
                 if not opp_zz.empty:
-                    st.dataframe((opp_zz["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                    render_circular_rings(opp_zz["pitch_type"].value_counts(normalize=True) * 100)
                 else:
                     st.info("No 0-0 pitches logged.")
             
             st.write("### 🚨 2-Strike Putaway Tendencies")
             opp_ts = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not opp_ts.empty:
-                st.dataframe((opp_ts["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                render_visual_mix(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
 
@@ -576,33 +558,12 @@ elif mode == "Opponent Pitcher Scout":
                     "Chase Count": chase_count
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
-
-            st.write("### 🔄 Sequential Pattern Recognition")
-            opp_pitcher_df = opp_pitcher_df.copy()
-            opp_pitcher_df["next_pitch"] = opp_pitcher_df["pitch_type"].shift(-1)
-            opp_pitcher_df["next_result"] = opp_pitcher_df["result"].shift(-1)
-            
-            fb_calls = opp_pitcher_df[(opp_pitcher_df["pitch_type"] == "Fastball") & (opp_pitcher_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
-            
-            if not fb_calls.empty:
-                selected_trigger = st.selectbox("Select Fastball Previous Outcome", fb_calls["result"].unique(), key="seq_trigger")
-                triggered_seq = fb_calls[fb_calls["result"] == selected_trigger]
-                
-                if not triggered_seq.empty and "next_pitch" in triggered_seq.columns:
-                    st.write(f"**Follow-up pitch after Fastball -> {selected_trigger}:**")
-                    seq_mix = triggered_seq["next_pitch"].value_counts(normalize=True) * 100
-                    st.dataframe(seq_mix.round(1).astype(str) + '%')
-                else:
-                    st.info("Not enough sequential data logged yet for this pattern.")
-            else:
-                st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
             st.info("No opponent pitches charted yet.")
     else:
         st.info("No pitch data logged yet.")
 
 else:
-    # --- HITTER ON-DECK CHEAT SHEET (ENHANCED) ---
     st.header("🧢 Hitter On-Deck Cheat Sheet")
     st.write("Dedicated view for hitters to review full opponent pitcher scouting, count breakdowns, and live game-plan action cards.")
     
@@ -616,113 +577,34 @@ else:
             
             st.metric("Total Pitches Charted", len(deck_pitcher_df))
             
-            # --- ON-DECK REAL-TIME DUGOUT ACTION CARD ---
             st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
             if len(deck_pitcher_df) >= 3:
                 deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
-                if not deck_zz.empty:
-                    zz_mix = deck_zz["pitch_type"].value_counts(normalize=True) * 100
-                    fav_00 = zz_mix.idxmax()
-                    fav_00_pct = zz_mix.max()
-                else:
-                    fav_00, fav_00_pct = "Fastball", 50.0
+                fav_00 = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_zz.empty else "Fastball"
+                fav_00_pct = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_zz.empty else 50.0
 
                 deck_ts = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
-                if not deck_ts.empty:
-                    ts_mix = deck_ts["pitch_type"].value_counts(normalize=True) * 100
-                    putaway_pitch = ts_mix.idxmax()
-                    putaway_pct = ts_mix.max()
-                else:
-                    putaway_pitch, putaway_pct = "Breaking Ball", 50.0
+                putaway_pitch = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_ts.empty else "Breaking Ball"
+                putaway_pct = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_ts.empty else 50.0
 
                 st.success(f"""
                 * 🟢 **0-0 Plan (First-Pitch Hunt):** Expect a **{fav_00}** (`{fav_00_pct:.1f}%` of the time on 0-0). If it's over the plate, put a good swing on it early!
                 * ⚠️ **2-Strike Trap Notice:** Watch out for the **{putaway_pitch}** (`{putaway_pct:.1f}%` in putaway counts). Expand your zone discipline or protect the plate.
-                * 🎯 **Approach:** Stay short and hunt your pitch early in the count rather than letting him dictate deep counts.
                 """)
             else:
                 st.info("Waiting for more opponent pitches to generate live dugout game plan cards.")
 
             col_x, col_y = st.columns(2)
             with col_x:
-                st.write("### Overall Pitch Mix")
-                st.dataframe((deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_visual_mix(mix, title_text="Overall Pitch Mix")
             with col_y:
                 st.write("### 🎯 0-0 Pitch Usage")
                 deck_zz_show = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
                 if not deck_zz_show.empty:
-                    st.dataframe((deck_zz_show["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
+                    render_circular_rings(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100)
                 else:
                     st.info("No 0-0 pitches logged.")
-            
-            st.write("### 🚨 2-Strike Putaway Tendencies")
-            deck_ts_show = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
-            if not deck_ts_show.empty:
-                st.dataframe((deck_ts_show["pitch_type"].value_counts(normalize=True) * 100).round(1).astype(str) + '%')
-            else:
-                st.info("No 2-strike counts logged yet.")
-
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Chase)")
-            metrics_rows = []
-            for p_type in deck_pitcher_df["pitch_type"].unique():
-                p_sub = deck_pitcher_df[deck_pitcher_df["pitch_type"] == p_type]
-                total_p = len(p_sub)
-                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                
-                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                
-                metrics_rows.append({
-                    "Pitch Type": p_type,
-                    "Total Thrown": total_p,
-                    "Called Strike %": f"{cs_pct:.1f}%",
-                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                    "Chase Count": chase_count
-                })
-            st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
-
-            if "batter" in deck_pitcher_df.columns:
-                st.write("### 🧢 Batter Breakdown vs This Pitcher")
-                valid_batters = [b for b in deck_pitcher_df["batter"].unique() if b != "N/A"]
-                if valid_batters:
-                    deck_batter = st.selectbox("Select Hitter to Review", valid_batters, key="deck_batter_select")
-                    batter_vs_df = deck_pitcher_df[deck_pitcher_df["batter"] == deck_batter]
-                    
-                    st.metric(f"Total Pitches Seen by {deck_batter}", len(batter_vs_df))
-                    
-                    if not batter_vs_df.empty:
-                        st.write("**Pitch Type % Breakdown by Count**")
-                        count_pitch_table = pd.crosstab(batter_vs_df["count"], batter_vs_df["pitch_type"], normalize="index") * 100
-                        st.dataframe(count_pitch_table.round(1).astype(str) + '%')
-                    else:
-                        st.info("No pitches logged for this hitter against this pitcher yet.")
-                else:
-                    st.info("No individual batter matchups logged yet.")
-            else:
-                st.info("Batter tracking column not found.")
-
-            st.write("### 🔄 Sequential Pattern Recognition")
-            deck_seq_df = deck_pitcher_df.copy()
-            deck_seq_df["next_pitch"] = deck_seq_df["pitch_type"].shift(-1)
-            deck_seq_df["next_result"] = deck_seq_df["result"].shift(-1)
-            
-            deck_fb_calls = deck_seq_df[(deck_seq_df["pitch_type"] == "Fastball") & (deck_seq_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul"]))]
-            
-            if not deck_fb_calls.empty:
-                deck_selected_trigger = st.selectbox("Select Fastball Previous Outcome", deck_fb_calls["result"].unique(), key="deck_seq_trigger")
-                deck_triggered_seq = deck_fb_calls[deck_fb_calls["result"] == deck_selected_trigger]
-                
-                if not deck_triggered_seq.empty and "next_pitch" in deck_triggered_seq.columns:
-                    st.write(f"**Follow-up pitch after Fastball -> {deck_selected_trigger}:**")
-                    deck_seq_mix = deck_triggered_seq["next_pitch"].value_counts(normalize=True) * 100
-                    st.dataframe(deck_seq_mix.round(1).astype(str) + '%')
-                else:
-                    st.info("Not enough sequential data logged yet for this pattern.")
-            else:
-                st.info("Log more fastball outcomes to unlock sequence tracking.")
         else:
             st.info("No opponent pitches charted yet.")
     else:
