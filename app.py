@@ -365,30 +365,6 @@ elif mode == "Our Pitching Coach Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
             
-            st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
-            if total_pitches >= 5:
-                mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                top_pitch = mix_full.idxmax()
-                top_pct = mix_full.max()
-                
-                whiff_dict = {}
-                for pt in coach_pitcher_df["pitch_type"].unique():
-                    pt_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == pt]
-                    swings = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    sw_miss = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                    whiff_dict[pt] = (sw_miss / swings * 100) if swings > 0 else 0.0
-                
-                best_whiff_pitch = max(whiff_dict, key=whiff_dict.get) if whiff_dict else top_pitch
-                best_whiff_val = whiff_dict.get(best_whiff_pitch, 0.0)
-                
-                st.info(f"""
-                * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
-                * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
-                * **Leverage Check:** 3-ball counts currently represent `{three_ball_pct:.1f}%` of total pitches thrown. Watch for command leakage in deep counts.
-                """)
-            else:
-                st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
-            
             col_x, col_y = st.columns(2)
             with col_x:
                 mix = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
@@ -427,6 +403,32 @@ elif mode == "Our Pitching Coach Dashboard":
                     "Chase Count": chase_count
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
+
+            # --- MOVED TO THE BOTTOM: DUGOUT COACH FEEDBACK & DIAGNOSTIC INSIGHTS ---
+            st.markdown("---")
+            st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
+            if total_pitches >= 5:
+                mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                top_pitch = mix_full.idxmax()
+                top_pct = mix_full.max()
+                
+                whiff_dict = {}
+                for pt in coach_pitcher_df["pitch_type"].unique():
+                    pt_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == pt]
+                    swings = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    sw_miss = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                    whiff_dict[pt] = (sw_miss / swings * 100) if swings > 0 else 0.0
+                
+                best_whiff_pitch = max(whiff_dict, key=whiff_dict.get) if whiff_dict else top_pitch
+                best_whiff_val = whiff_dict.get(best_whiff_pitch, 0.0)
+                
+                st.info(f"""
+                * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
+                * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
+                * **Leverage Check:** 3-ball counts currently represent `{three_ball_pct:.1f}%` of total pitches thrown. Watch for command leakage in deep counts.
+                """)
+            else:
+                st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
         else:
             st.info("No pitches logged for our pitchers yet.")
             
