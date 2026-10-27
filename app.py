@@ -153,15 +153,11 @@ if mode == "Our Pitcher Tracker":
         if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
             st.session_state.our_pitcher_batter_index = 0
             
-        expected_batter = opp_batters_list[st.session_state.our_pitcher_batter_index]
-        if "our_mode_hitter_override" not in st.session_state or st.session_state.our_mode_hitter_override not in opp_batters_list:
-            st.session_state.our_mode_hitter_override = expected_batter
-            
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
-            index=opp_batters_list.index(st.session_state.our_mode_hitter_override),
-            key="our_mode_hitter_override"
+            index=st.session_state.our_pitcher_batter_index,
+            key="our_mode_hitter_override_widget"
         )
         
         new_override_index = opp_batters_list.index(manual_override_opp)
@@ -216,9 +212,7 @@ if mode == "Our Pitcher Tracker":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
-                    next_idx = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
-                    st.session_state.our_pitcher_batter_index = next_idx
-                    st.session_state.our_mode_hitter_override = opp_batters_list[next_idx]
+                    st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
@@ -468,15 +462,11 @@ elif mode == "Opponent Pitcher Scout":
         if st.session_state.opp_scout_batter_index >= len(our_batters_list):
             st.session_state.opp_scout_batter_index = 0
             
-        expected_batter_our = our_batters_list[st.session_state.opp_scout_batter_index]
-        if "opp_scout_hitter_override" not in st.session_state or st.session_state.opp_scout_hitter_override not in our_batters_list:
-            st.session_state.opp_scout_hitter_override = expected_batter_our
-            
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
-            index=our_batters_list.index(st.session_state.opp_scout_hitter_override),
-            key="opp_scout_hitter_override"
+            index=st.session_state.opp_scout_batter_index,
+            key="opp_scout_hitter_override_widget"
         )
         
         selected_index_our = our_batters_list.index(manual_override_our)
@@ -530,9 +520,7 @@ elif mode == "Opponent Pitcher Scout":
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
-                    next_idx_our = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
-                    st.session_state.opp_scout_batter_index = next_idx_our
-                    st.session_state.opp_scout_hitter_override = our_batters_list[next_idx_our]
+                    st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
