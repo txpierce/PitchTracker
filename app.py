@@ -672,9 +672,83 @@ else:
             deck_opp = st.selectbox("Select Current Opponent Pitcher", opp_df["pitcher"].unique(), key="deck_opp_select")
             deck_pitcher_df = opp_df[opp_df["pitcher"] == deck_opp]
             
-            st.metric("Total Pitches Charted", len(deck_pitcher_df))
+            total_deck_pitches = len(deck_pitcher_df)
+            st.metric("Total Pitches Charted", total_deck_pitches)
             
-            # --- NEW: INDIVIDUAL HITTER REVIEW & STRATEGIC APPROACH ---
+            # --- FULL PITCHER DIAGNOSTICS & METRICS FOR ON-DECK VIEW ---
+            col_dm1, col_dm2 = st.columns(2)
+            with col_dm1:
+                deck_fp = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_fp.empty:
+                    deck_fp_strikes = len(deck_fp[deck_fp["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    deck_fp_pct = (deck_fp_strikes / len(deck_fp)) * 100
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>{deck_fp_pct:.1f}%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>0.0%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col_dm2:
+                deck_three_ball = deck_pitcher_df[deck_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]
+                deck_three_pct = (len(deck_three_ball) / total_deck_pitches * 100) if total_deck_pitches > 0 else 0.0
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>⚠️ 3-Ball Count Frequency</h3>
+                    <h2>{deck_three_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
+
+            col_dx, col_dy = st.columns(2)
+            with col_dx:
+                deck_mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_glowing_bars(deck_mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
+            with col_dy:
+                deck_zz_card = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_zz_card.empty:
+                    render_glowing_metric_cards(deck_zz_card["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+
+            deck_ts_bars = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not deck_ts_bars.empty:
+                render_glowing_bars(deck_ts_bars["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Bar Breakdown")
+            else:
+                st.info("No 2-strike counts logged yet.")
+
+            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
+            deck_metrics_rows = []
+            for p_type in deck_pitcher_df["pitch_type"].unique():
+                p_sub = deck_pitcher_df[deck_pitcher_df["pitch_type"] == p_type]
+                total_p = len(p_sub)
+                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                
+                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
+                
+                deck_metrics_rows.append({
+                    "Pitch Type": p_type,
+                    "Total Thrown": total_p,
+                    "Called Strike %": f"{cs_pct:.1f}%",
+                    "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
+                    "Total Strike %": f"{total_strike_pct:.1f}%",
+                    "Chase Count": chase_count
+                })
+            st.dataframe(pd.DataFrame(deck_metrics_rows), hide_index=True)
+
+            # --- INDIVIDUAL HITTER REVIEW & STRATEGIC APPROACH ---
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & At-Bat Approach")
             
@@ -740,17 +814,6 @@ else:
                 """)
             else:
                 st.info("Waiting for more opponent pitches to generate live dugout game plan cards.")
-
-            col_x, col_y = st.columns(2)
-            with col_x:
-                mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_glowing_bars(mix, title_text="Overall Pitch Mix")
-            with col_y:
-                deck_zz_show = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
-                if not deck_zz_show.empty:
-                    render_glowing_metric_cards(deck_zz_show["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
-                else:
-                    st.info("No 0-0 pitches logged.")
         else:
             st.info("No opponent pitches charted yet.")
     else:
