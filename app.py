@@ -146,6 +146,7 @@ if mode == "Our Pitcher Tracker":
     else:
         current_our_pitcher = selected_pitcher_option
 
+    # Manual Opponent Hitter Override for Our Pitcher Tracker
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -170,7 +171,7 @@ if mode == "Our Pitcher Tracker":
     
     st.info(f"⚾ **Facing Opponent Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
 
-    with st.form("our_pitch_form", clear_on_submit=False):
+    with st.form("our_pitch_form", clear_on_submit=True):
         st.write(f"**Logging pitches for our pitcher:** `{current_our_pitcher}`")
         col1, col2 = st.columns(2)
         with col1:
@@ -336,7 +337,6 @@ elif mode == "Our Pitching Coach Dashboard":
             total_pitches = len(coach_pitcher_df)
             st.metric("Total Pitches Thrown", total_pitches)
             
-            # --- METRICS ROW: FPS% & 3-BALL COUNT FREQUENCY ---
             col_m1, col_m2 = st.columns(2)
             
             with col_m1:
@@ -410,7 +410,6 @@ elif mode == "Our Pitching Coach Dashboard":
                 })
             st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
 
-            # --- MOVED TO THE BOTTOM: DUGOUT COACH FEEDBACK & DIAGNOSTIC INSIGHTS ---
             st.markdown("---")
             st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
             if total_pitches >= 5:
@@ -485,7 +484,7 @@ elif mode == "Opponent Pitcher Scout":
     
     st.info(f"⚾ **Current Our Hitter:** `{current_batter}` | 🎯 **Current Count:** `{current_count_str}`")
 
-    with st.form("scout_form", clear_on_submit=False):
+    with st.form("scout_form", clear_on_submit=True):
         st.write(f"**Charting against opponent pitcher:** `{current_opp_pitcher}`")
         
         col1, col2 = st.columns(2)
