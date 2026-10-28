@@ -407,7 +407,7 @@ if mode == "Our Pitcher Tracker":
                 col_a, col_b = st.columns(2)
                 with col_a:
                     mix = pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                    render_glowing_bars(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
+                    render_glowing_bars(mix, title_text="📊 Overall Pitch Mix")
                 with col_b:
                     zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
                     if not zero_zero.empty:
@@ -419,7 +419,7 @@ if mode == "Our Pitcher Tracker":
                 ts_df = pitcher_df[pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
                 if not ts_df.empty:
                     ts_mix = ts_df["pitch_type"].value_counts(normalize=True) * 100
-                    render_glowing_bars(ts_mix, title_text="🚨 2-Strike Putaway Bar Breakdown")
+                    render_glowing_bars(ts_mix, title_text="🚨 2-Strike Putaway Breakdown")
                 else:
                     st.info("No 2-strike counts logged yet.")
 
@@ -543,7 +543,7 @@ elif mode == "Our Pitching Coach Dashboard":
             col_x, col_y = st.columns(2)
             with col_x:
                 mix = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_glowing_bars(mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
+                render_glowing_bars(mix, title_text="📊 Overall Pitch Mix")
             with col_y:
                 coach_zz = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not coach_zz.empty:
@@ -553,7 +553,7 @@ elif mode == "Our Pitching Coach Dashboard":
             
             coach_ts = coach_pitcher_df[coach_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not coach_ts.empty:
-                render_glowing_bars(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Bar Breakdown")
+                render_glowing_bars(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
 
@@ -836,7 +836,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             col_dx, col_dy = st.columns(2)
             with col_dx:
                 deck_mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                render_glowing_bars(deck_mix, title_text="📊 Overall Pitch Mix (Visual Bars)")
+                render_glowing_bars(deck_mix, title_text="📊 Overall Pitch Mix")
             with col_dy:
                 deck_zz_card = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
                 if not deck_zz_card.empty:
@@ -846,7 +846,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
 
             deck_ts_bars = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
             if not deck_ts_bars.empty:
-                render_glowing_bars(deck_ts_bars["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Bar Breakdown")
+                render_glowing_bars(deck_ts_bars["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Breakdown")
             else:
                 st.info("No 2-strike counts logged yet.")
 
