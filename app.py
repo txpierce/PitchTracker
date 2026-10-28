@@ -202,12 +202,25 @@ def render_table_count_breakdown(pitcher_df):
         st.info("No data available.")
         return
     
-    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
-    existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
-    other_cols = [c for c in ct_table.columns if c not in existing_cols]
-    ct_table = ct_table[existing_cols + other_cols]
+    # Calculate Total Pitches Thrown per count
+    count_totals = pitcher_df["count"].value_counts().rename("Total Pitches")
     
-    st.dataframe(ct_table.astype(str) + '%', use_container_width=True)
+    # Calculate percentage breakdown by count
+    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
+    
+    # Insert Total Pitches as the second column (or first column after Count index)
+    ct_table.insert(0, "Total Pitches", count_totals)
+    
+    existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
+    other_cols = [c for c in ct_table.columns if c not in existing_cols and c != "Total Pitches"]
+    ct_table = ct_table[["Total Pitches"] + existing_cols + other_cols]
+    
+    # Format pitch percentage columns with '%' sign while keeping Total Pitches as plain integer
+    formatted_table = ct_table.copy()
+    for col in existing_cols + other_cols:
+        formatted_table[col] = formatted_table[col].astype(str) + '%'
+        
+    st.dataframe(formatted_table, use_container_width=True)
 
 # --- PDF GENERATOR HELPERS ---
 def generate_pdf_report(report_title, pitcher_name, stats_df):
@@ -281,6 +294,36 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
         ]))
         story.append(t_adv)
+        story.append(Spacer(1, 15))
+
+        # 3. Count Breakdown Matrix Table for PDF
+        if "count" in stats_df.columns:
+            story.append(Paragraph("📊 Pitch Type % Breakdown by Count", section_style))
+            count_totals = stats_df["count"].value_counts()
+            ct_table = pd.crosstab(stats_df["count"], stats_df["pitch_type"], normalize="index").mul(100).round(1)
+            ct_table.insert(0, "Total Pitches", count_totals)
+            
+            existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
+            other_cols = [c for c in ct_table.columns if c not in existing_cols and c != "Total Pitches"]
+            ct_table = ct_table[["Total Pitches"] + existing_cols + other_cols]
+            
+            ct_header = ["Count", "Total Pitches"] + existing_cols + other_cols
+            ct_rows = [ct_header]
+            for idx, row in ct_table.iterrows():
+                row_data = [str(idx), str(int(row["Total Pitches"]))] + [f"{val:.1f}%" if pd.notnull(val) else "0.0%" for col_name, val in row.items() if col_name != "Total Pitches"]
+                ct_rows.append(row_data)
+                
+            t_ct = Table(ct_rows)
+            t_ct.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
+            ]))
+            story.append(t_ct)
 
     doc.build(story)
     buffer.seek(0)
