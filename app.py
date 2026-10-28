@@ -83,6 +83,8 @@ if "our_pitcher_strikes" not in st.session_state:
     st.session_state.our_pitcher_strikes = 0
 if "our_pitcher_batter_index" not in st.session_state:
     st.session_state.our_pitcher_batter_index = 0
+if "selected_our_pitcher" not in st.session_state:
+    st.session_state.selected_our_pitcher = "Reliever 1"
 
 if "opp_scout_balls" not in st.session_state:
     st.session_state.opp_scout_balls = 0
@@ -90,6 +92,8 @@ if "opp_scout_strikes" not in st.session_state:
     st.session_state.opp_scout_strikes = 0
 if "opp_scout_batter_index" not in st.session_state:
     st.session_state.opp_scout_batter_index = 0
+if "selected_opp_pitcher" not in st.session_state:
+    st.session_state.selected_opp_pitcher = "Opponent Reliever"
 
 # Fetch existing pitch logs from Supabase
 @st.cache_data(ttl=2)
@@ -143,12 +147,24 @@ if mode == "Our Pitcher Tracker":
         existing_pitchers = list(df[df["mode"] == "Our Pitcher Tracker"]["pitcher"].unique())
     
     pitcher_options = existing_pitchers + ["➕ Add New Reliever/Pitcher"]
-    selected_pitcher_option = st.sidebar.selectbox("Current Pitcher", pitcher_options, index=0 if existing_pitchers else len(pitcher_options)-1)
+    
+    # Ensure current session state pitcher is valid in options
+    current_default_index = 0
+    if st.session_state.selected_our_pitcher in pitcher_options:
+        current_default_index = pitcher_options.index(st.session_state.selected_our_pitcher)
+    elif existing_pitchers:
+        current_default_index = 0
+    else:
+        current_default_index = len(pitcher_options) - 1
+
+    selected_pitcher_option = st.sidebar.selectbox("Current Pitcher", pitcher_options, index=current_default_index, key="sidebar_our_pitcher_select")
     
     if selected_pitcher_option == "➕ Add New Reliever/Pitcher":
-        current_our_pitcher = st.sidebar.text_input("Enter Reliever Name", value="Reliever 1")
+        current_our_pitcher = st.sidebar.text_input("Enter Reliever Name", value="Reliever 1", key="new_reliever_input")
+        st.session_state.selected_our_pitcher = current_our_pitcher
     else:
         current_our_pitcher = selected_pitcher_option
+        st.session_state.selected_our_pitcher = current_our_pitcher
 
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
@@ -159,7 +175,8 @@ if mode == "Our Pitcher Tracker":
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
-            index=st.session_state.our_pitcher_batter_index
+            index=st.session_state.our_pitcher_batter_index,
+            key="our_hitter_override_select"
         )
         
         new_override_index = opp_batters_list.index(manual_override_opp)
@@ -568,12 +585,23 @@ elif mode == "Opponent Pitcher Scout":
         existing_opps = list(df[df["mode"] == "Opponent Pitcher Scout"]["pitcher"].unique())
         
     opp_options = existing_opps + ["➕ Add New Opponent Pitcher"]
-    selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=0 if existing_opps else len(opp_options)-1, key="opp_select_side")
+    
+    opp_default_index = 0
+    if st.session_state.selected_opp_pitcher in opp_options:
+        opp_default_index = opp_options.index(st.session_state.selected_opp_pitcher)
+    elif existing_opps:
+        opp_default_index = 0
+    else:
+        opp_default_index = len(opp_options) - 1
+
+    selected_opp_option = st.sidebar.selectbox("Opponent Pitcher", opp_options, index=opp_default_index, key="opp_select_side")
     
     if selected_opp_option == "➕ Add New Opponent Pitcher":
-        current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever")
+        current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever", key="new_opp_input")
+        st.session_state.selected_opp_pitcher = current_opp_pitcher
     else:
         current_opp_pitcher = selected_opp_option
+        st.session_state.selected_opp_pitcher = current_opp_pitcher
 
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
@@ -584,7 +612,8 @@ elif mode == "Opponent Pitcher Scout":
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
-            index=st.session_state.opp_scout_batter_index
+            index=st.session_state.opp_scout_batter_index,
+            key="opp_hitter_override_select"
         )
         
         selected_index_our = our_batters_list.index(manual_override_our)
@@ -961,7 +990,7 @@ else:
                 last_id = recent_res.data[0]["id"]
                 supabase.table("pitch_logs").delete().eq("id", last_id).execute()
                 st.cache_data.clear()
-                st.success("Successfully deleted the last bullpen pitch!")
+                st.success("Successfully deleted the bullpen pitch!")
                 st.rerun()
             else:
                 st.warning("No bullpen pitches to undo.")
