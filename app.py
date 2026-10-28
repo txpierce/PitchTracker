@@ -463,6 +463,7 @@ if mode == "Our Pitcher Tracker":
         if st.session_state.our_pitcher_batter_index >= len(opp_batters_list):
             st.session_state.our_pitcher_batter_index = 0
             
+        # Bind the selectbox widget directly to session state index
         manual_override_opp = st.sidebar.selectbox(
             "Override Current Opponent Hitter", 
             opp_batters_list, 
@@ -530,11 +531,13 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # --- FIXED STATE ADVANCEMENT LOGIC ---
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
+                    # --- AUTOMATIC LINEUP INCREMENT & WIDGET CACHE FLUSH ---
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
+                    if "our_hitter_override_select" in st.session_state:
+                        del st.session_state["our_hitter_override_select"]
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
@@ -880,6 +883,7 @@ elif mode == "Opponent Pitcher Scout":
         if st.session_state.opp_scout_batter_index >= len(our_batters_list):
             st.session_state.opp_scout_batter_index = 0
             
+        # Bind the selectbox widget directly to session state index
         manual_override_our = st.sidebar.selectbox(
             "Override Current Our Hitter", 
             our_batters_list, 
@@ -946,11 +950,13 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # --- FIXED STATE ADVANCEMENT LOGIC ---
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
+                    # --- AUTOMATIC LINEUP INCREMENT & WIDGET CACHE FLUSH ---
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
+                    if "opp_hitter_override_select" in st.session_state:
+                        del st.session_state["opp_hitter_override_select"]
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
