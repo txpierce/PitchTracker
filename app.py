@@ -208,7 +208,7 @@ def render_table_count_breakdown(pitcher_df):
     # Calculate percentage breakdown by count
     ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
     
-    # Insert Total Pitches as the second column (or first column after Count index)
+    # Insert Total Pitches as the second column
     ct_table.insert(0, "Total Pitches", count_totals)
     
     existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
@@ -220,7 +220,15 @@ def render_table_count_breakdown(pitcher_df):
     for col in existing_cols + other_cols:
         formatted_table[col] = formatted_table[col].astype(str) + '%'
         
-    st.dataframe(formatted_table, use_container_width=True)
+    # Build column configurations with tight widths
+    column_config = {
+        "count": st.column_config.TextColumn("Count", width="small"),
+        "Total Pitches": st.column_config.NumberColumn("Total Pitches", width="small"),
+    }
+    for col in existing_cols + other_cols:
+        column_config[col] = st.column_config.TextColumn(col, width="small")
+        
+    st.dataframe(formatted_table, use_container_width=True, column_config=column_config)
 
 # --- PDF GENERATOR HELPERS ---
 def generate_pdf_report(report_title, pitcher_name, stats_df):
