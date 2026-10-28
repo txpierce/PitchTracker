@@ -530,6 +530,7 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
+                # --- FIXED STATE ADVANCEMENT LOGIC ---
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
@@ -945,6 +946,7 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
+                # --- FIXED STATE ADVANCEMENT LOGIC ---
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
