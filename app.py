@@ -186,6 +186,48 @@ def render_clean_advanced_metrics(pitcher_df):
         </div>
         """, unsafe_allow_html=True)
 
+def render_clean_hitter_matchup(hitter_matchup_df):
+    st.write("### 📊 Result Breakdown by Pitch")
+    for pt in hitter_matchup_df["pitch_type"].unique():
+        pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
+        total_pt = len(pt_df)
+        
+        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
+        take_ball = len(pt_df[pt_df["result"] == "Ball"])
+        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
+        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
+        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
+        
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                📌 {pt} &nbsp;|&nbsp; <span style="color: #a0a0c0; font-size: 13px;">Total Thrown: {total_pt}</span>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Take Strike</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_strike}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Take Ball</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_ball}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Chase Strike</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{chase_strike}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Foul Ball</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{foul_ball}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Put in Play</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{put_in_play}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 # --- MAIN APP MODES ---
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
@@ -513,27 +555,9 @@ elif mode == "Our Pitching Coach Dashboard":
                         h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
                         render_glowing_bars(h_mix, title_text="Hitter Pitch Mix Faced")
                     with hc2:
-                        st.write("**Result Breakdown by Pitch**")
+                        pass
                         
-                    for pt in hitter_matchup_df["pitch_type"].unique():
-                        pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
-                        
-                        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
-                        take_ball = len(pt_df[pt_df["result"] == "Ball"])
-                        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
-                        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
-                        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
-                        
-                        single_pitch_df = pd.DataFrame([{
-                            "Take for Strike": take_strike,
-                            "Take for Ball": take_ball,
-                            "Chase for Strike": chase_strike,
-                            "Foul Ball": foul_ball,
-                            "Put in Play": put_in_play
-                        }])
-                        
-                        st.markdown(f"**📌 Pitch: {pt}** (Total: {len(pt_df)})")
-                        st.dataframe(single_pitch_df, hide_index=True)
+                    render_clean_hitter_matchup(hitter_matchup_df)
                     
                     st.write("**Detailed Pitch Log History vs. Hitter**")
                     st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
@@ -820,27 +844,9 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                         h_mix_deck = hitter_scout_df["pitch_type"].value_counts(normalize=True) * 100
                         render_glowing_bars(h_mix_deck, title_text="Pitch Distribution")
                     with hc2:
-                        st.write("**Result Breakdown by Pitch**")
+                        pass
                     
-                    for pt in hitter_scout_df["pitch_type"].unique():
-                        pt_df = hitter_scout_df[hitter_scout_df["pitch_type"] == pt]
-                        
-                        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
-                        take_ball = len(pt_df[pt_df["result"] == "Ball"])
-                        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
-                        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
-                        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
-                        
-                        single_pitch_df = pd.DataFrame([{
-                            "Take for Strike": take_strike,
-                            "Take for Ball": take_ball,
-                            "Chase for Strike": chase_strike,
-                            "Foul Ball": foul_ball,
-                            "Put in Play": put_in_play
-                        }])
-                        
-                        st.markdown(f"**📌 Pitch: {pt}** (Total Seen: {len(pt_df)})")
-                        st.dataframe(single_pitch_df, hide_index=True)
+                    render_clean_hitter_matchup(hitter_scout_df)
                     
                     st.write("**Detailed At-Bat Log History**")
                     st.dataframe(hitter_scout_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
