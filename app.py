@@ -457,22 +457,6 @@ if mode == "Our Pitcher Tracker":
         current_our_pitcher = selected_pitcher_option
         st.session_state.selected_our_pitcher = current_our_pitcher
 
-    # --- PERSISTENT BATTER INDEX SYNC FOR OUR TRACKER ---
-    current_pitcher_df = df[(df["mode"] == "Our Pitcher Tracker") & (df["pitcher"] == current_our_pitcher)] if not df.empty else pd.DataFrame()
-    if not current_pitcher_df.empty and "batter" in current_pitcher_df.columns:
-        # Count unique completed PA or look at the last logged batter and advance
-        last_logged_row = current_pitcher_df.iloc[-1]
-        last_batter = last_logged_row["batter"]
-        last_res = last_logged_row["result"]
-        last_cnt = last_logged_row["count"]
-        
-        if last_batter in opp_batters_list:
-            idx = opp_batters_list.index(last_batter)
-            if last_res in ["In Play", "Hit By Pitch", "Strikeout"] or last_cnt == "3-2" and last_res in ["Called Strike", "Swinging Strike", "Ball"]:
-                st.session_state.our_pitcher_batter_index = (idx + 1) % len(opp_batters_list)
-            else:
-                st.session_state.our_pitcher_batter_index = idx
-
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -888,21 +872,6 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
         st.session_state.selected_opp_pitcher = current_opp_pitcher
-
-    # --- PERSISTENT BATTER INDEX SYNC FOR OPPONENT SCOUT ---
-    current_opp_scout_df = df[(df["mode"] == "Opponent Pitcher Scout") & (df["pitcher"] == current_opp_pitcher)] if not df.empty else pd.DataFrame()
-    if not current_opp_scout_df.empty and "batter" in current_opp_scout_df.columns:
-        last_logged_row = current_opp_scout_df.iloc[-1]
-        last_batter = last_logged_row["batter"]
-        last_res = last_logged_row["result"]
-        last_cnt = last_logged_row["count"]
-        
-        if last_batter in our_batters_list:
-            idx = our_batters_list.index(last_batter)
-            if last_res in ["In Play", "Hit By Pitch", "Strikeout"] or last_cnt == "3-2" and last_res in ["Called Strike", "Swinging Strike", "Ball"]:
-                st.session_state.opp_scout_batter_index = (idx + 1) % len(our_batters_list)
-            else:
-                st.session_state.opp_scout_batter_index = idx
 
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
