@@ -538,15 +538,40 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # --- AUTO-ADVANCE BATTER CHECK ---
-                # Determine if this pitch completes the at-bat (Strikeout, Walk, HBP, or Ball In Play)
-                is_strikeout = (st.session_state.our_pitcher_strikes == 2 and result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"])
-                is_walk = (st.session_state.our_pitcher_balls == 3 and result == "Ball")
+                # --- PROPER CUMULATIVE COUNT & AUTO-ADVANCE LOGIC ---
+                is_strike_result = result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul", "Chase Contact / Foul"]
+                is_ball_result = (result == "Ball")
                 is_hbp = (result == "Hit By Pitch")
                 is_in_play = (result == "In Play")
 
+                # Calculate resulting strikes/balls for this pitch
+                new_strikes = st.session_state.our_pitcher_strikes
+                new_balls = st.session_state.our_pitcher_balls
+
+                if is_strike_result:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"] and new_strikes == 2:
+                        # 3rd strike! At-bat ends in Strikeout
+                        is_strikeout = True
+                    else:
+                        is_strikeout = False
+                        if new_strikes < 2:
+                            new_strikes += 1
+                else:
+                    is_strikeout = False
+
+                if is_ball_result:
+                    if new_balls == 3:
+                        # 4th ball! At-bat ends in Walk
+                        is_walk = True
+                    else:
+                        is_walk = False
+                        new_balls += 1
+                else:
+                    is_walk = False
+
+                # Check if at-bat is completed
                 if is_strikeout or is_walk or is_hbp or is_in_play:
-                    # Reset count and move to the next batter in the lineup!
+                    # Reset count and advance through all 9 batters cyclically!
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
@@ -554,17 +579,9 @@ if mode == "Our Pitcher Tracker":
                         del st.session_state["our_hitter_override_select"]
                     st.success(f"At-bat ended! Advanced to next hitter: {opp_batters_list[st.session_state.our_pitcher_batter_index]}")
                 else:
-                    # Standard pitch: Increment balls or strikes normally
-                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
-                        if st.session_state.our_pitcher_strikes < 2:
-                            st.session_state.our_pitcher_strikes += 1
-                    elif result == "Ball":
-                        if st.session_state.our_pitcher_balls < 3:
-                            st.session_state.our_pitcher_balls += 1
-                    elif result in ["Foul", "Chase Contact / Foul"]:
-                        if st.session_state.our_pitcher_strikes < 2:
-                            st.session_state.our_pitcher_strikes += 1
-                            
+                    # Keep accumulated count
+                    st.session_state.our_pitcher_strikes = new_strikes
+                    st.session_state.our_pitcher_balls = new_balls
                     st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_pitcher_balls}-{st.session_state.our_pitcher_strikes}")
 
                 st.cache_data.clear()
@@ -998,14 +1015,36 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # --- AUTO-ADVANCE BATTER CHECK (SCOUT MODE) ---
-                is_strikeout = (st.session_state.opp_scout_strikes == 2 and result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"])
-                is_walk = (st.session_state.opp_scout_balls == 3 and result == "Ball")
+                # --- PROPER CUMULATIVE COUNT & AUTO-ADVANCE LOGIC (SCOUT MODE) ---
+                is_strike_result = result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul", "Chase Contact / Foul"]
+                is_ball_result = (result == "Ball")
                 is_hbp = (result == "Hit By Pitch")
                 is_in_play = (result == "In Play")
 
+                new_strikes = st.session_state.opp_scout_strikes
+                new_balls = st.session_state.opp_scout_balls
+
+                if is_strike_result:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"] and new_strikes == 2:
+                        is_strikeout = True
+                    else:
+                        is_strikeout = False
+                        if new_strikes < 2:
+                            new_strikes += 1
+                else:
+                    is_strikeout = False
+
+                if is_ball_result:
+                    if new_balls == 3:
+                        is_walk = True
+                    else:
+                        is_walk = False
+                        new_balls += 1
+                else:
+                    is_walk = False
+
                 if is_strikeout or is_walk or is_hbp or is_in_play:
-                    # Reset count and advance to the next hitter in our lineup!
+                    # Reset count and cycle through all 9 batters in our lineup!
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
@@ -1013,17 +1052,8 @@ elif mode == "Opponent Pitcher Scout":
                         del st.session_state["opp_hitter_override_select"]
                     st.success(f"At-bat ended! Advanced to next hitter: {our_batters_list[st.session_state.opp_scout_batter_index]}")
                 else:
-                    # Standard pitch: Increment balls or strikes normally
-                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
-                        if st.session_state.opp_scout_strikes < 2:
-                            st.session_state.opp_scout_strikes += 1
-                    elif result == "Ball":
-                        if st.session_state.opp_scout_balls < 3:
-                            st.session_state.opp_scout_balls += 1
-                    elif result in ["Foul", "Chase Contact / Foul"]:
-                        if st.session_state.opp_scout_strikes < 2:
-                            st.session_state.opp_scout_strikes += 1
-                            
+                    st.session_state.opp_scout_strikes = new_strikes
+                    st.session_state.opp_scout_balls = new_balls
                     st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
 
                 st.cache_data.clear()
