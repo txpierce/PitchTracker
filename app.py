@@ -537,14 +537,15 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # FIXED: Force at-bat completion if button clicked OR pitch ends AB, 
-                # and explicitly clear override session state so selectbox updates immediately.
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
+                    
+                    # FIXED: Delete the selectbox widget cache so it updates on rerun
                     if "our_hitter_override_select" in st.session_state:
                         del st.session_state["our_hitter_override_select"]
+                        
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
@@ -964,14 +965,15 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                # FIXED: Force at-bat completion if button clicked OR pitch ends AB,
-                # and explicitly clear override session state so selectbox updates immediately.
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
+                    
+                    # FIXED: Delete the selectbox widget cache so it updates on rerun
                     if "opp_hitter_override_select" in st.session_state:
                         del st.session_state["opp_hitter_override_select"]
+                        
                     st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 else:
                     if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
