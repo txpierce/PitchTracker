@@ -202,25 +202,18 @@ def render_table_count_breakdown(pitcher_df):
         st.info("No data available.")
         return
     
-    # Calculate Total Pitches Thrown per count
     count_totals = pitcher_df["count"].value_counts().rename("Total Pitches")
-    
-    # Calculate percentage breakdown by count
     ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
-    
-    # Insert Total Pitches as the second column
     ct_table.insert(0, "Total Pitches", count_totals)
     
     existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
     other_cols = [c for c in ct_table.columns if c not in existing_cols and c != "Total Pitches"]
     ct_table = ct_table[["Total Pitches"] + existing_cols + other_cols]
     
-    # Format pitch percentage columns with '%' sign while keeping Total Pitches as plain integer
     formatted_table = ct_table.copy()
     for col in existing_cols + other_cols:
         formatted_table[col] = formatted_table[col].astype(str) + '%'
         
-    # Build column configurations with tight widths
     column_config = {
         "count": st.column_config.TextColumn("Count", width="small"),
         "Total Pitches": st.column_config.NumberColumn("Total Pitches", width="small"),
@@ -229,6 +222,57 @@ def render_table_count_breakdown(pitcher_df):
         column_config[col] = st.column_config.TextColumn(col, width="small")
         
     st.dataframe(formatted_table, use_container_width=True, column_config=column_config)
+
+# --- HELPER: CALCULATE COACH SPECIFIC ADVANCED METRICS ---
+def calculate_coach_situational_metrics(pitcher_df):
+    if pitcher_df.empty:
+        return 0.0, 0.0, 0.0
+    
+    # Group by at-bats / plate appearances (we can approximate by batter & timestamp sequence, or simulate per plate appearance)
+    # Since each log has a count, let's track per plate appearance sequence if sorted chronologically, 
+    # or identify first 3 pitches of each plate appearance.
+    pa_list = []
+    current_pa = []
+    
+    # Sort chronologically
+    sorted_df = pitcher_df.sort_values(by="timestamp", ascending=True) if "timestamp" in pitcher_df.columns else pitcher_df
+    
+    for idx, row in sorted_df.iterrows():
+        cnt = row["count"]
+        # If count is 0-0, that's typically a new plate appearance start
+        if cnt == "0-0" and current_pa:
+            pa_list.append(current_pa)
+            current_pa = []
+        current_pa.append(row)
+    if current_pa:
+        pa_list.append(current_pa)
+        
+    two_of_three_strikes_count = 0
+    valid_pas_for_2of3 = 0
+    
+    for pa in pa_list:
+        first_three = pa[:3]
+        if len(first_three) >= 3:
+            valid_pas_for_2of3 += 1
+            strikes_in_first_3 = sum(1 for p in first_three if p["result"] in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])
+            if strikes_in_first_3 >= 2:
+                two_of_three_strikes_count += 1
+                
+    two_of_three_pct = (two_of_three_strikes_count / valid_pas_for_2of3 * 100) if valid_pas_for_2of3 > 0 else 0.0
+    
+    # Ahead or Even Count % (excluding 0-0): Ahead = 0-1, 0-2, 1-2; Even = 1-1, 2-2
+    ahead_even_counts = ["0-1", "0-2", "1-2", "1-1", "2-2"]
+    ahead_even_df = pitcher_df[pitcher_df["count"].isin(ahead_even_counts)]
+    total_non_00 = len(pitcher_df[pitcher_df["count"] != "0-0"])
+    ahead_even_pct = (len(ahead_even_df) / total_non_00 * 100) if total_non_00 > 0 else 0.0
+    
+    # Behind count %: Behind = 1-0, 2-0, 3-0, 2-1, 3-1, 3-2
+    behind_counts = ["1-0", "2-0", "3-0", "2-1", "3-1", "3-2"]
+    behind_df = pitcher_df[pitcher_df["count"].isin(behind_counts)]
+    total_pitches = len(pitcher_df)
+    behind_pct = (len(behind_df) / total_pitches * 100) if total_pitches > 0 else 0.0
+    
+    return two_of_three_pct, ahead_even_pct, behind_pct
 
 # --- PDF GENERATOR HELPERS ---
 def generate_pdf_report(report_title, pitcher_name, stats_df):
@@ -250,7 +294,10 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
         story.append(Paragraph("No pitch data available for this report.", body_style))
     else:
         total_p = len(stats_df)
-        story.append(Paragraph(f"<b>Total Pitches Analyzed:</b> {total_p}", body_style))
+        two_3_pct, ah_ev_pct, bh_pct = calculate_coach_situational_metrics(stats_df)
+        
+        story.append(Paragraph(f"<b>Total Pitches Analyzed:</b> {total_p} &nbsp;|&nbsp; <b>2 Out of First 3 Strike %:</b> {two_3_pct:.1f}%", body_style))
+        story.append(Paragraph(f"<b>Ahead / Even Count % (Excl. 0-0):</b> {ah_ev_pct:.1f}% &nbsp;|&nbsp; <b>Behind Count %:</b> {bh_pct:.1f}%", body_style))
         story.append(Spacer(1, 10))
         
         story.append(Paragraph("📊 Overall Pitch Mix Distribution", section_style))
@@ -304,7 +351,6 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
         story.append(t_adv)
         story.append(Spacer(1, 15))
 
-        # 3. Count Breakdown Matrix Table for PDF
         if "count" in stats_df.columns:
             story.append(Paragraph("📊 Pitch Type % Breakdown by Count", section_style))
             count_totals = stats_df["count"].value_counts()
@@ -663,6 +709,33 @@ elif mode == "Our Pitching Coach Dashboard":
                 <div class="metric-card">
                     <h3>⚠️ 3-Ball Count Frequency</h3>
                     <h2>{three_ball_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # --- NEW COACH ADVANCED METRIC CARDS ---
+            two_3_pct, ah_ev_pct, bh_pct = calculate_coach_situational_metrics(coach_pitcher_df)
+            
+            col_cm1, col_cm2, col_cm3 = st.columns(3)
+            with col_cm1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>🟢 2 Out of First 3 Strike %</h3>
+                    <h2>{two_3_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_cm2:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>🔵 Ahead / Even Count %</h3>
+                    <h2>{ah_ev_pct:.1f}%</h2>
+                    <p style="color: #a0a0c0; font-size: 11px; margin: 0;">(Excl. 0-0)</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_cm3:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>⚠️ Behind Count %</h3>
+                    <h2>{bh_pct:.1f}%</h2>
                 </div>
                 """, unsafe_allow_html=True)
             
