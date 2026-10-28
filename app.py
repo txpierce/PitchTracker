@@ -37,7 +37,7 @@ st.markdown("""
     height: 8px;
     width: 100%;
     margin-top: 4px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 .glow-bar-fill {
     height: 100%;
@@ -182,6 +182,77 @@ def render_clean_advanced_metrics(pitcher_df):
                     <span style="font-size: 12px; color: #a0a0c0;">Called Strike %: <b>{cs_pct:.1f}%</b> ({called_strikes}/{total_p})</span>
                     <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
                 </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_clean_count_breakdown(pitcher_df):
+    st.write("### 📊 Pitch Type % Breakdown by Count")
+    if pitcher_df.empty or "count" not in pitcher_df.columns:
+        st.info("No data available.")
+        return
+    
+    ct_matrix = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
+    
+    for count_val, row in ct_matrix.iterrows():
+        bars_html = ""
+        for p_type, val in row.items():
+            if val > 0:
+                bars_html += f"""
+                <div style="margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #a0a0c0; margin-bottom: 2px;">
+                        <span>{p_type}</span><span><b>{val:.1f}%</b></span>
+                    </div>
+                    <div class="glow-bar-container" style="margin-bottom: 4px;"><div class="glow-bar-fill" style="width: {min(max(val, 2), 100)}%;"></div></div>
+                </div>
+                """
+        
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 15px; font-weight: 700; color: #00ccff; margin-bottom: 8px;">
+                🎯 Count: {count_val}
+            </div>
+            {bars_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_clean_batted_ball_profile(pitcher_df):
+    st.write("### 📊 Batted Ball Profile & Outcomes")
+    in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
+    if in_play_df.empty:
+        st.info("No batted ball data recorded yet.")
+        return
+    
+    contact_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index").mul(100).round(1)
+    hit_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1)
+    
+    all_pitches = list(set(list(contact_matrix.index) + list(hit_matrix.index)))
+    
+    for pt in all_pitches:
+        contact_html = ""
+        if pt in contact_matrix.index:
+            for c_type, c_val in contact_matrix.loc[pt].items():
+                if c_val > 0:
+                    contact_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{c_type}: <b>{c_val:.1f}%</b></span>"
+                    
+        hit_html = ""
+        if pt in hit_matrix.index:
+            for h_type, h_val in hit_matrix.loc[pt].items():
+                if h_val > 0:
+                    hit_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{h_type}: <b>{h_val:.1f}%</b></span>"
+
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                ⚾ {pt}
+            </div>
+            <div style="margin-bottom: 8px;">
+                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Contact Types:</div>
+                <div>{contact_html if contact_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
+            </div>
+            <div>
+                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Hit Outcomes:</div>
+                <div>{hit_html if hit_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -389,20 +460,8 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 render_clean_advanced_metrics(pitcher_df)
-
-                st.write("### 📊 Pitch Type % Breakdown by Count")
-                st.dataframe(pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%')
-
-                st.write("### 📊 Batted Ball Profile & Pitch Breakdown")
-                in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
-                if not in_play_df.empty:
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.write("**Contact Types**")
-                        st.dataframe(pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index").mul(100).round(1).astype(str) + '%')
-                    with c2:
-                        st.write("**Hit Outcomes**")
-                        st.dataframe(pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1).astype(str) + '%')
+                render_clean_count_breakdown(pitcher_df)
+                render_clean_batted_ball_profile(pitcher_df)
         else:
             st.info("No pitches logged for our pitchers yet.")
 
@@ -535,6 +594,8 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(coach_pitcher_df)
+            render_clean_count_breakdown(coach_pitcher_df)
+            render_clean_batted_ball_profile(coach_pitcher_df)
 
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & History Breakdown")
@@ -756,6 +817,8 @@ elif mode == "Opponent Pitcher Scout":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(opp_pitcher_df)
+            render_clean_count_breakdown(opp_pitcher_df)
+            render_clean_batted_ball_profile(opp_pitcher_df)
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -824,6 +887,8 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(deck_pitcher_df)
+            render_clean_count_breakdown(deck_pitcher_df)
+            render_clean_batted_ball_profile(deck_pitcher_df)
 
             st.markdown("---")
             st.subheader("👤 Individual Hitter Review & Strategic Approach")
