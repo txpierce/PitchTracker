@@ -228,18 +228,12 @@ def calculate_coach_situational_metrics(pitcher_df):
     if pitcher_df.empty:
         return 0.0, 0.0, 0.0
     
-    # Group by at-bats / plate appearances (we can approximate by batter & timestamp sequence, or simulate per plate appearance)
-    # Since each log has a count, let's track per plate appearance sequence if sorted chronologically, 
-    # or identify first 3 pitches of each plate appearance.
     pa_list = []
     current_pa = []
-    
-    # Sort chronologically
     sorted_df = pitcher_df.sort_values(by="timestamp", ascending=True) if "timestamp" in pitcher_df.columns else pitcher_df
     
     for idx, row in sorted_df.iterrows():
         cnt = row["count"]
-        # If count is 0-0, that's typically a new plate appearance start
         if cnt == "0-0" and current_pa:
             pa_list.append(current_pa)
             current_pa = []
@@ -260,13 +254,11 @@ def calculate_coach_situational_metrics(pitcher_df):
                 
     two_of_three_pct = (two_of_three_strikes_count / valid_pas_for_2of3 * 100) if valid_pas_for_2of3 > 0 else 0.0
     
-    # Ahead or Even Count % (excluding 0-0): Ahead = 0-1, 0-2, 1-2; Even = 1-1, 2-2
     ahead_even_counts = ["0-1", "0-2", "1-2", "1-1", "2-2"]
     ahead_even_df = pitcher_df[pitcher_df["count"].isin(ahead_even_counts)]
     total_non_00 = len(pitcher_df[pitcher_df["count"] != "0-0"])
     ahead_even_pct = (len(ahead_even_df) / total_non_00 * 100) if total_non_00 > 0 else 0.0
     
-    # Behind count %: Behind = 1-0, 2-0, 3-0, 2-1, 3-1, 3-2
     behind_counts = ["1-0", "2-0", "3-0", "2-1", "3-1", "3-2"]
     behind_df = pitcher_df[pitcher_df["count"].isin(behind_counts)]
     total_pitches = len(pitcher_df)
@@ -681,40 +673,34 @@ elif mode == "Our Pitching Coach Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
             
-            col_m1, col_m2 = st.columns(2)
-            
-            with col_m1:
-                fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
-                if not fp_df.empty:
-                    fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    fp_strike_pct = (fp_strikes / len(fp_df)) * 100
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
-                        <h2>{fp_strike_pct:.1f}%</h2>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
-                        <h2>0.0%</h2>
-                    </div>
-                    """, unsafe_allow_html=True)
+            # --- REORDERED METRIC CARDS ---
+            fp_strike_pct = 0.0
+            fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
+            if not fp_df.empty:
+                fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                fp_strike_pct = (fp_strikes / len(fp_df)) * 100
 
+            three_ball_pct = (len(coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]) / total_pitches * 100) if total_pitches > 0 else 0.0
+            two_3_pct, ah_ev_pct, bh_pct = calculate_coach_situational_metrics(coach_pitcher_df)
+
+            # Row 1: 1st-Pitch Strike & 3-Ball Count Frequency
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                    <h2>{fp_strike_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
             with col_m2:
-                three_ball_df = coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]
-                three_ball_pct = (len(three_ball_df) / total_pitches * 100) if total_pitches > 0 else 0.0
                 st.markdown(f"""
                 <div class="metric-card">
                     <h3>⚠️ 3-Ball Count Frequency</h3>
                     <h2>{three_ball_pct:.1f}%</h2>
                 </div>
                 """, unsafe_allow_html=True)
-            
-            # --- NEW COACH ADVANCED METRIC CARDS ---
-            two_3_pct, ah_ev_pct, bh_pct = calculate_coach_situational_metrics(coach_pitcher_df)
-            
+
+            # Row 2: 2 Out of First 3 Strike %, Ahead/Even Count %, Behind Count %
             col_cm1, col_cm2, col_cm3 = st.columns(3)
             with col_cm1:
                 st.markdown(f"""
