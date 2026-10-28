@@ -209,94 +209,7 @@ def render_table_count_breakdown(pitcher_df):
     
     st.dataframe(ct_table.astype(str) + '%', use_container_width=True)
 
-def render_clean_batted_ball_profile(pitcher_df):
-    st.write("### 📊 Batted Ball Profile & Outcomes")
-    in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
-    if in_play_df.empty:
-        st.info("No batted ball data recorded yet.")
-        return
-    
-    contact_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index").mul(100).round(1)
-    hit_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1)
-    
-    all_pitches = list(set(list(contact_matrix.index) + list(hit_matrix.index)))
-    sorted_pitches = sort_pitch_series(all_pitches)
-    
-    for pt in sorted_pitches:
-        contact_html = ""
-        if pt in contact_matrix.index:
-            for c_type, c_val in contact_matrix.loc[pt].items():
-                if c_val > 0:
-                    contact_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{c_type}: <b>{c_val:.1f}%</b></span>"
-                    
-        hit_html = ""
-        if pt in hit_matrix.index:
-            for h_type, h_val in hit_matrix.loc[pt].items():
-                if h_val > 0:
-                    hit_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{h_type}: <b>{h_val:.1f}%</b></span>"
-
-        st.markdown(f"""
-        <div class="pitch-card">
-            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
-                ⚾ {pt}
-            </div>
-            <div style="margin-bottom: 8px;">
-                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Contact Types:</div>
-                <div>{contact_html if contact_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
-            </div>
-            <div>
-                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Hit Outcomes:</div>
-                <div>{hit_html if hit_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-def render_clean_hitter_matchup(hitter_matchup_df):
-    st.write("### 📊 Result Breakdown by Pitch")
-    matchup_pitches = hitter_matchup_df["pitch_type"].unique()
-    sorted_matchup_pitches = sort_pitch_series(matchup_pitches)
-    
-    for pt in sorted_matchup_pitches:
-        pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
-        total_pt = len(pt_df)
-        
-        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
-        take_ball = len(pt_df[pt_df["result"] == "Ball"])
-        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
-        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
-        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
-        
-        st.markdown(f"""
-        <div class="pitch-card">
-            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
-                📌 {pt} &nbsp;|&nbsp; <span style="color: #a0a0c0; font-size: 13px;">Total Thrown: {total_pt}</span>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 11px; color: #a0a0c0;">Take Strike</span>
-                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_strike}</div>
-                </div>
-                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 11px; color: #a0a0c0;">Take Ball</span>
-                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_ball}</div>
-                </div>
-                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 11px; color: #a0a0c0;">Chase Strike</span>
-                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{chase_strike}</div>
-                </div>
-                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 11px; color: #a0a0c0;">Foul Ball</span>
-                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{foul_ball}</div>
-                </div>
-                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 11px; color: #a0a0c0;">Put in Play</span>
-                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{put_in_play}</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# --- PDF GENERATOR HELPER ---
+# --- PDF GENERATOR HELPERS ---
 def generate_pdf_report(report_title, pitcher_name, stats_df):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
@@ -308,7 +221,6 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
     section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor("#2a2a40"), spaceBefore=12, spaceAfter=6)
     body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor("#333333"), spaceAfter=4)
     
-    # Title & Metadata
     story.append(Paragraph(f"⚾ TX_Pierce Report: {report_title}", title_style))
     story.append(Paragraph(f"<b>Subject:</b> {pitcher_name} &nbsp;|&nbsp; <b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1c83e1"), spaceAfter=10))
@@ -320,7 +232,6 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
         story.append(Paragraph(f"<b>Total Pitches Analyzed:</b> {total_p}", body_style))
         story.append(Spacer(1, 10))
         
-        # 1. Pitch Mix Summary Table
         story.append(Paragraph("📊 Overall Pitch Mix Distribution", section_style))
         mix_counts = stats_df["pitch_type"].value_counts()
         mix_pcts = (stats_df["pitch_type"].value_counts(normalize=True) * 100).round(1)
@@ -342,8 +253,7 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
         story.append(t_mix)
         story.append(Spacer(1, 15))
         
-        # 2. Advanced Metrics Breakdown Table
-        story.append(Paragraph("🎯 Advanced Metrics Breakdown (Strike %, Whiff %, Called Strike %)", section_style))
+        story.append(Paragraph("🎯 Advanced Metrics Breakdown", section_style))
         adv_data = [["Pitch Type", "Thrown", "Total Strike %", "Whiff % (Swings)", "Called Strike %"]]
         
         for p_type in sort_pitch_series(stats_df["pitch_type"].unique()):
@@ -371,34 +281,59 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
         ]))
         story.append(t_adv)
-        story.append(Spacer(1, 15))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def generate_bullpen_pdf_report(pitcher_name, bullpen_df):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor("#1c83e1"), spaceAfter=6)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor("#555555"), spaceAfter=15)
+    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor("#2a2a40"), spaceBefore=12, spaceAfter=6)
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor("#333333"), spaceAfter=4)
+    
+    story.append(Paragraph("⚾ TX_Pierce Report: Bullpen Session Analysis", title_style))
+    story.append(Paragraph(f"<b>Pitcher:</b> {pitcher_name} &nbsp;|&nbsp; <b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1c83e1"), spaceAfter=10))
+    
+    if bullpen_df.empty:
+        story.append(Paragraph("No bullpen session data available for this report.", body_style))
+    else:
+        total_p = len(bullpen_df)
+        total_s = len(bullpen_df[bullpen_df["result"] == "Strike"])
+        overall_pct = (total_s / total_p * 100) if total_p > 0 else 0.0
         
-        # 3. Count Breakdown Matrix Table
-        if "count" in stats_df.columns:
-            story.append(Paragraph("📊 Pitch Type % Breakdown by Count", section_style))
-            ct_table = pd.crosstab(stats_df["count"], stats_df["pitch_type"], normalize="index").mul(100).round(1)
-            existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
-            other_cols = [c for c in ct_table.columns if c not in existing_cols]
-            ct_table = ct_table[existing_cols + other_cols]
+        story.append(Paragraph(f"<b>Total Pitches Thrown:</b> {total_p} &nbsp;|&nbsp; <b>Overall Strike %:</b> {overall_pct:.1f}% ({total_s}/{total_p})", body_style))
+        story.append(Spacer(1, 10))
+        
+        story.append(Paragraph("📊 Strike % & Volume by Pitch Type", section_style))
+        bp_data = [["Pitch Type", "Total Thrown", "Strikes", "Strike %"]]
+        
+        bp_pitches = bullpen_df["pitch_type"].unique()
+        for p_type in sort_pitch_series(bp_pitches):
+            p_sub = bullpen_df[bullpen_df["pitch_type"] == p_type]
+            p_total = len(p_sub)
+            p_strikes = len(p_sub[p_sub["result"] == "Strike"])
+            p_strike_pct = (p_strikes / p_total * 100) if p_total > 0 else 0.0
             
-            ct_header = ["Count"] + list(ct_table.columns)
-            ct_rows = [ct_header]
-            for idx, row in ct_table.iterrows():
-                row_data = [str(idx)] + [f"{val:.1f}%" if pd.notnull(val) else "0.0%" for val in row]
-                ct_rows.append(row_data)
-                
-            t_ct = Table(ct_rows)
-            t_ct.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
-            ]))
-            story.append(t_ct)
-            story.append(Spacer(1, 15))
+            bp_data.append([p_type, str(p_total), str(p_strikes), f"{p_strike_pct:.1f}%"])
+            
+        t_bp = Table(bp_data, colWidths=[180, 100, 100, 120])
+        t_bp.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
+        ]))
+        story.append(t_bp)
 
     doc.build(story)
     buffer.seek(0)
@@ -566,7 +501,6 @@ if mode == "Our Pitcher Tracker":
 
                 render_clean_advanced_metrics(pitcher_df)
                 render_table_count_breakdown(pitcher_df)
-                render_clean_batted_ball_profile(pitcher_df)
         else:
             st.info("No pitches logged for our pitchers yet.")
 
@@ -700,62 +634,6 @@ elif mode == "Our Pitching Coach Dashboard":
 
             render_clean_advanced_metrics(coach_pitcher_df)
             render_table_count_breakdown(coach_pitcher_df)
-            render_clean_batted_ball_profile(coach_pitcher_df)
-
-            st.markdown("---")
-            st.subheader("👤 Individual Hitter Matchup & History Breakdown")
-            
-            logged_hitters = list(coach_pitcher_df["batter"].unique()) if "batter" in coach_pitcher_df.columns else []
-            hitter_review_options = logged_hitters if logged_hitters else opp_batters_list
-            
-            if hitter_review_options:
-                selected_review_hitter = st.selectbox("Select Opponent Hitter to Review Matchup", hitter_review_options, key="coach_hitter_review_select")
-                hitter_matchup_df = coach_pitcher_df[coach_pitcher_df["batter"] == selected_review_hitter]
-                
-                if not hitter_matchup_df.empty:
-                    st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
-                    
-                    hc1, hc2 = st.columns(2)
-                    with hc1:
-                        st.write("**Pitch Types Thrown to Hitter**")
-                        h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
-                        render_glowing_bars(h_mix, title_text="Hitter Pitch Mix Faced")
-                    with hc2:
-                        pass
-                        
-                    render_clean_hitter_matchup(hitter_matchup_df)
-                    
-                    st.write("**Detailed Pitch Log History vs. Hitter**")
-                    st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
-                else:
-                    st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
-            else:
-                st.info("No opponent batters available for review.")
-
-            st.markdown("---")
-            st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
-            if total_pitches >= 5:
-                mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-                top_pitch = mix_full.idxmax()
-                top_pct = mix_full.max()
-                
-                whiff_dict = {}
-                for pt in coach_pitcher_df["pitch_type"].unique():
-                    pt_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == pt]
-                    swings = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    sw_miss = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                    whiff_dict[pt] = (sw_miss / swings * 100) if swings > 0 else 0.0
-                
-                best_whiff_pitch = max(whiff_dict, key=whiff_dict.get) if whiff_dict else top_pitch
-                best_whiff_val = whiff_dict.get(best_whiff_pitch, 0.0)
-                
-                st.info(f"""
-                * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
-                * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
-                * **Leverage Check:** 3-ball counts currently represent `{three_ball_pct:.1f}%` of total pitches thrown. Watch for command leakage in deep counts.
-                """)
-            else:
-                st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
         else:
             st.info("No pitches logged for our pitchers yet.")
             
@@ -923,7 +801,6 @@ elif mode == "Opponent Pitcher Scout":
 
             render_clean_advanced_metrics(opp_pitcher_df)
             render_table_count_breakdown(opp_pitcher_df)
-            render_clean_batted_ball_profile(opp_pitcher_df)
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -993,37 +870,6 @@ elif mode == "Hitter On-Deck Cheat Sheet":
 
             render_clean_advanced_metrics(deck_pitcher_df)
             render_table_count_breakdown(deck_pitcher_df)
-            render_clean_batted_ball_profile(deck_pitcher_df)
-
-            st.markdown("---")
-            st.subheader("👤 Individual Hitter Review & Strategic Approach")
-            
-            deck_hitters = list(deck_pitcher_df["batter"].unique()) if "batter" in deck_pitcher_df.columns else []
-            deck_hitter_options = deck_hitters if deck_hitters else our_batters_list
-            
-            if deck_hitter_options:
-                selected_deck_hitter = st.selectbox("Select Our Hitter to Review Matchup", deck_hitter_options, key="deck_hitter_review_select")
-                hitter_scout_df = deck_pitcher_df[deck_pitcher_df["batter"] == selected_deck_hitter]
-                
-                if not hitter_scout_df.empty:
-                    st.metric(f"Total Pitches Seen by {selected_deck_hitter}", len(hitter_scout_df))
-                    
-                    hc1, hc2 = st.columns(2)
-                    with hc1:
-                        st.write("**Pitch Mix Faced**")
-                        h_mix_deck = hitter_scout_df["pitch_type"].value_counts(normalize=True) * 100
-                        render_glowing_bars(h_mix_deck, title_text="Pitch Distribution")
-                    with hc2:
-                        pass
-                    
-                    render_clean_hitter_matchup(hitter_scout_df)
-                    
-                    st.write("**Detailed At-Bat Log History**")
-                    st.dataframe(hitter_scout_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
-                else:
-                    st.info(f"No logged pitch data found for {selected_deck_hitter} against {deck_opp}.")
-            else:
-                st.info("No our batters available for review.")
 
             st.markdown("---")
             st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
@@ -1182,7 +1028,7 @@ if not df.empty:
         mime="text/csv",
     )
     
-    # PDF Export Button (Generates calculated report based on current mode/pitcher)
+    # PDF Export Button (Dynamic based on active mode)
     if mode in ["Our Pitcher Tracker", "Our Pitching Coach Dashboard"]:
         active_mode_df = df[df["mode"] == "Our Pitcher Tracker"]
         current_target = st.session_state.get("selected_our_pitcher", "Pitcher")
@@ -1205,6 +1051,18 @@ if not df.empty:
             label="📄 Export Calculated PDF Report",
             data=pdf_bytes,
             file_name=f"TX_Pierce_Scout_{current_target.replace(' ', '_')}_Report.pdf",
+            mime="application/pdf",
+        )
+    elif mode == "Bullpen Charting":
+        active_mode_df = df[df["mode"] == "Bullpen Charting"]
+        current_bp_target = locals().get("selected_bp_view", locals().get("current_bp_pitcher", "Bullpen Pitcher"))
+        bullpen_report_df = active_mode_df[active_mode_df["pitcher"] == current_bp_target] if not active_mode_df.empty else pd.DataFrame()
+        pdf_bytes = generate_bullpen_pdf_report(current_bp_target, bullpen_report_df)
+        
+        st.sidebar.download_button(
+            label="📄 Export Calculated PDF Report",
+            data=pdf_bytes,
+            file_name=f"TX_Pierce_Bullpen_{current_bp_target.replace(' ', '_')}_Report.pdf",
             mime="application/pdf",
         )
 else:
