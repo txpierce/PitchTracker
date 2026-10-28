@@ -4,7 +4,6 @@ from supabase import create_client
 import time
 import plotly.express as px
 import plotly.graph_objects as go
-from google import genai
 
 # Page Config
 st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
@@ -60,39 +59,6 @@ st.markdown("""
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# --- GEMINI CLIENT & STRATEGY HELPER ---
-# Your valid Google AI Studio API key is hardcoded here to bypass local secrets caching
-client = genai.Client()
-
-def get_gemini_dugout_approach(pitcher_name, summary_text, mode_type="hitter"):
-    """Sends live pitch summary to Gemini and returns real-time dugout tactics."""
-    try:
-        if mode_type == "hitter":
-            prompt = f"""
-            You are an elite travel ball & high school hitting coach in the dugout. Analyze this live scouting data for opposing pitcher '{pitcher_name}':
-            {summary_text}
-            Provide 2 short, bulleted tactical instructions for our hitter in the on-deck circle:
-            1. First-Pitch Hunt (What to expect on 0-0)
-            2. 2-Strike Approach / Trap Notice
-            Keep it concise, energetic, and dugout-ready.
-            """
-        else:
-            prompt = f"""
-            You are an elite pitching strategist. Analyze this live outing for our pitcher '{pitcher_name}':
-            {summary_text}
-            Provide 2 short, actionable adjustments for our pitching coach:
-            1. Pitch Arsenal Adjustment (Whiff rate vs Usage)
-            2. Count Management / Predictability Warning
-            Keep it concise and tactical.
-            """
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-        return response.text
-    except Exception as e:
-        return f"⚠️ Error generating AI strategy: {e}"
 
 st.title("⚾ TX_Pierce Pitch Tracker")
 
@@ -155,6 +121,7 @@ def sort_pitch_series(series_or_index):
     """Sorts a pandas Series or Index based on the preferred PITCH_ORDER."""
     existing_items = list(series_or_index)
     sorted_list = [p for p in PITCH_ORDER if p in existing_items]
+    # Include any unexpected residual pitch types at the end
     for item in existing_items:
         if item not in sorted_list:
             sorted_list.append(item)
@@ -231,6 +198,7 @@ def render_table_count_breakdown(pitcher_df):
         return
     
     ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
+    # Reorder columns based on PITCH_ORDER
     existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
     other_cols = [c for c in ct_table.columns if c not in existing_cols]
     ct_table = ct_table[existing_cols + other_cols]
@@ -622,19 +590,6 @@ elif mode == "Our Pitching Coach Dashboard":
             render_table_count_breakdown(coach_pitcher_df)
             render_clean_batted_ball_profile(coach_pitcher_df)
 
-            # --- REAL-TIME GEMINI AI STRATEGIC PITCHER APPROACH ---
-            st.markdown("---")
-            st.subheader("🤖 Real-Time Gemini AI Strategic Pitcher Approach")
-            if total_pitches >= 3:
-                if st.button("⚡ Generate Live AI Pitching Strategy", key="gemini_coach_btn"):
-                    fp_pct_val = fp_strike_pct if 'fp_strike_pct' in locals() else 0.0
-                    summary_str = f"Pitcher: {coach_opp}, Total Pitches: {total_pitches}, FPS%: {fp_pct_val:.1f}%, 3-Ball%: {three_ball_pct:.1f}%, Overall Pitch Mix: {mix.to_dict()}"
-                    with st.spinner("Gemini is analyzing live pitching metrics..."):
-                        ai_advice = get_gemini_dugout_approach(coach_opp, summary_str, mode_type="coach")
-                        st.info(f"### 🤖 Gemini Live Pitching Adjustments\n{ai_advice}")
-            else:
-                st.info("Log at least 3 pitches to enable real-time Gemini AI strategy.")
-
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & History Breakdown")
             
@@ -664,6 +619,31 @@ elif mode == "Our Pitching Coach Dashboard":
                     st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
             else:
                 st.info("No opponent batters available for review.")
+
+            st.markdown("---")
+            st.markdown("### 🧠 Dugout Coach Feedback & Diagnostic Insights")
+            if total_pitches >= 5:
+                mix_full = coach_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                top_pitch = mix_full.idxmax()
+                top_pct = mix_full.max()
+                
+                whiff_dict = {}
+                for pt in coach_pitcher_df["pitch_type"].unique():
+                    pt_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == pt]
+                    swings = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    sw_miss = len(pt_sub[pt_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+                    whiff_dict[pt] = (sw_miss / swings * 100) if swings > 0 else 0.0
+                
+                best_whiff_pitch = max(whiff_dict, key=whiff_dict.get) if whiff_dict else top_pitch
+                best_whiff_val = whiff_dict.get(best_whiff_pitch, 0.0)
+                
+                st.info(f"""
+                * **Effective Velocity & Mix Realities:** `{coach_opp}` is leaning heavily on the `{top_pitch}` (`{top_pct:.1f}%` usage). 
+                * **Whiff Opportunity Alert:** Your highest whiff-generating pitch is currently the `{best_whiff_pitch}` (`{best_whiff_val:.1f}%` whiff rate). Consider dialing up its frequency if hitters are sitting on the primary pitch.
+                * **Leverage Check:** 3-ball counts currently represent `{three_ball_pct:.1f}%` of total pitches thrown. Watch for command leakage in deep counts.
+                """)
+            else:
+                st.info("Log at least 5 pitches to unlock automated coaching recommendations.")
         else:
             st.info("No pitches logged for our pitchers yet.")
             
@@ -804,6 +784,7 @@ elif mode == "Opponent Pitcher Scout":
     
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        opp_df = opp_df.sort_values(by="timestamp", ascending=True)
         
         if not opp_df.empty:
             selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_pitcher")
@@ -932,18 +913,23 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             else:
                 st.info("No our batters available for review.")
 
-            # --- REAL-TIME GEMINI AI STRATEGIC PITCHER APPROACH FOR HITTERS ---
             st.markdown("---")
-            st.subheader("🤖 Real-Time Gemini AI Strategic Pitcher Approach")
-            if total_deck_pitches >= 3:
-                if st.button("⚡ Generate Live AI Hitter Approach", key="gemini_hitter_btn"):
-                    deck_zz_data = deck_zz_card["pitch_type"].value_counts(normalize=True).to_dict() if not deck_zz_card.empty else "N/A"
-                    summary_str = f"Opponent Pitcher: {deck_opp}, Total Pitches Charted: {total_deck_pitches}, Overall Mix: {deck_mix.to_dict()}, 0-0 Mix: {deck_zz_data}"
-                    with st.spinner("Gemini is analyzing opponent pitching tendencies..."):
-                        ai_advice = get_gemini_dugout_approach(deck_opp, summary_str, mode_type="hitter")
-                        st.success(f"### 🤖 Gemini Live On-Deck Strategy\n{ai_advice}")
+            st.markdown("### 🔥 Live Dugout Game Plan & Hitter Notice")
+            if len(deck_pitcher_df) >= 3:
+                deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                fav_00 = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_zz.empty else "Fastball"
+                fav_00_pct = (deck_zz["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_zz.empty else 50.0
+
+                deck_ts = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+                putaway_pitch = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).idxmax() if not deck_ts.empty else "Breaking Ball"
+                putaway_pct = (deck_ts["pitch_type"].value_counts(normalize=True) * 100).max() if not deck_ts.empty else 50.0
+
+                st.success(f"""
+                * 🟢 **0-0 Plan (First-Pitch Hunt):** Expect a **{fav_00}** (`{fav_00_pct:.1f}%` of the time on 0-0). If it's over the plate, put a good swing on it early!
+                * ⚠️ **2-Strike Trap Notice:** Watch out for the **{putaway_pitch}** (`{putaway_pct:.1f}%` in putaway counts). Expand your zone discipline or protect the plate.
+                """)
             else:
-                st.info("Log at least 3 opponent pitches to enable AI recommendations.")
+                st.info("Waiting for more opponent pitches to generate live dugout game plan cards.")
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -1087,3 +1073,6 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.rerun()
     except Exception as e:
         st.sidebar.error(f"Error clearing data: {e}")
+
+
+
