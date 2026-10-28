@@ -744,6 +744,43 @@ elif mode == "Our Pitching Coach Dashboard":
 
             render_clean_advanced_metrics(coach_pitcher_df)
             render_table_count_breakdown(coach_pitcher_df)
+
+            # --- NEW INDIVIDUAL HITTER MATCHUP & HISTORY BREAKDOWN SECTION ---
+            st.markdown("---")
+            st.subheader("👤 Individual Hitter Matchup & History Breakdown")
+            
+            logged_hitters = list(coach_pitcher_df["batter"].unique()) if "batter" in coach_pitcher_df.columns else []
+            hitter_review_options = logged_hitters if logged_hitters else opp_batters_list
+            
+            if hitter_review_options:
+                selected_review_hitter = st.selectbox("Select Opponent Hitter to Review Matchup", hitter_review_options, key="coach_hitter_review_select")
+                hitter_matchup_df = coach_pitcher_df[coach_pitcher_df["batter"] == selected_review_hitter]
+                
+                if not hitter_matchup_df.empty:
+                    st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
+                    
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
+                        render_glowing_bars(h_mix, title_text="Pitch Mix Faced by Hitter")
+                    with hc2:
+                        h_zz = hitter_matchup_df[hitter_matchup_df["count"] == "0-0"]
+                        if not h_zz.empty:
+                            render_glowing_bars(h_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="0-0 Usage vs Hitter")
+                        else:
+                            st.info("No 0-0 pitches logged against this hitter.")
+                            
+                    render_clean_advanced_metrics(hitter_matchup_df)
+                    render_table_count_breakdown(hitter_matchup_df)
+                    
+                    st.write("### 📝 Detailed Pitch Log History vs. Hitter")
+                    display_cols = [c for c in ["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"] if c in hitter_matchup_df.columns]
+                    st.dataframe(hitter_matchup_df[display_cols], use_container_width=True)
+                else:
+                    st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
+            else:
+                st.info("No opponent batters available for review.")
+
         else:
             st.info("No pitches logged for our pitchers yet.")
             
