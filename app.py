@@ -186,35 +186,14 @@ def render_clean_advanced_metrics(pitcher_df):
         </div>
         """, unsafe_allow_html=True)
 
-def render_clean_count_breakdown(pitcher_df):
+def render_table_count_breakdown(pitcher_df):
     st.write("### 📊 Pitch Type % Breakdown by Count")
     if pitcher_df.empty or "count" not in pitcher_df.columns:
         st.info("No data available.")
         return
     
-    ct_matrix = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
-    
-    for count_val, row in ct_matrix.iterrows():
-        bars_html = ""
-        for p_type, val in row.items():
-            if val > 0:
-                bars_html += f"""
-                <div style="margin-bottom: 6px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #a0a0c0; margin-bottom: 2px;">
-                        <span>{p_type}</span><span><b>{val:.1f}%</b></span>
-                    </div>
-                    <div class="glow-bar-container" style="margin-bottom: 4px;"><div class="glow-bar-fill" style="width: {min(max(val, 2), 100)}%;"></div></div>
-                </div>
-                """
-        
-        st.markdown(f"""
-        <div class="pitch-card">
-            <div style="font-size: 15px; font-weight: 700; color: #00ccff; margin-bottom: 8px;">
-                🎯 Count: {count_val}
-            </div>
-            {bars_html}
-        </div>
-        """, unsafe_allow_html=True)
+    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%'
+    st.dataframe(ct_table, use_container_width=True)
 
 def render_clean_batted_ball_profile(pitcher_df):
     st.write("### 📊 Batted Ball Profile & Outcomes")
@@ -460,7 +439,7 @@ if mode == "Our Pitcher Tracker":
                     st.info("No 2-strike counts logged yet.")
 
                 render_clean_advanced_metrics(pitcher_df)
-                render_clean_count_breakdown(pitcher_df)
+                render_table_count_breakdown(pitcher_df)
                 render_clean_batted_ball_profile(pitcher_df)
         else:
             st.info("No pitches logged for our pitchers yet.")
@@ -594,7 +573,7 @@ elif mode == "Our Pitching Coach Dashboard":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(coach_pitcher_df)
-            render_clean_count_breakdown(coach_pitcher_df)
+            render_table_count_breakdown(coach_pitcher_df)
             render_clean_batted_ball_profile(coach_pitcher_df)
 
             st.markdown("---")
@@ -817,7 +796,7 @@ elif mode == "Opponent Pitcher Scout":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(opp_pitcher_df)
-            render_clean_count_breakdown(opp_pitcher_df)
+            render_table_count_breakdown(opp_pitcher_df)
             render_clean_batted_ball_profile(opp_pitcher_df)
         else:
             st.info("No opponent pitches charted yet.")
@@ -887,7 +866,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
                 st.info("No 2-strike counts logged yet.")
 
             render_clean_advanced_metrics(deck_pitcher_df)
-            render_clean_count_breakdown(deck_pitcher_df)
+            render_table_count_breakdown(deck_pitcher_df)
             render_clean_batted_ball_profile(deck_pitcher_df)
 
             st.markdown("---")
