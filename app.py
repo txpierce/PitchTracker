@@ -2,8 +2,14 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 import time
-import plotly.express as px
-import plotly.graph_objects as go
+import io
+from datetime import datetime
+
+# ReportLab imports for PDF generation
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # Page Config
 st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
@@ -121,7 +127,6 @@ def sort_pitch_series(series_or_index):
     """Sorts a pandas Series or Index based on the preferred PITCH_ORDER."""
     existing_items = list(series_or_index)
     sorted_list = [p for p in PITCH_ORDER if p in existing_items]
-    # Include any unexpected residual pitch types at the end
     for item in existing_items:
         if item not in sorted_list:
             sorted_list.append(item)
@@ -290,6 +295,114 @@ def render_clean_hitter_matchup(hitter_matchup_df):
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+# --- PDF GENERATOR HELPER ---
+def generate_pdf_report(report_title, pitcher_name, stats_df):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor("#1c83e1"), spaceAfter=6)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor("#555555"), spaceAfter=15)
+    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor("#2a2a40"), spaceBefore=12, spaceAfter=6)
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor("#333333"), spaceAfter=4)
+    
+    # Title & Metadata
+    story.append(Paragraph(f"⚾ TX_Pierce Report: {report_title}", title_style))
+    story.append(Paragraph(f"<b>Subject:</b> {pitcher_name} &nbsp;|&nbsp; <b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1c83e1"), spaceAfter=10))
+    
+    if stats_df.empty:
+        story.append(Paragraph("No pitch data available for this report.", body_style))
+    else:
+        total_p = len(stats_df)
+        story.append(Paragraph(f"<b>Total Pitches Analyzed:</b> {total_p}", body_style))
+        story.append(Spacer(1, 10))
+        
+        # 1. Pitch Mix Summary Table
+        story.append(Paragraph("📊 Overall Pitch Mix Distribution", section_style))
+        mix_counts = stats_df["pitch_type"].value_counts()
+        mix_pcts = (stats_df["pitch_type"].value_counts(normalize=True) * 100).round(1)
+        
+        mix_data = [["Pitch Type", "Count", "Usage %"]]
+        for pt in sort_pitch_series(mix_counts.index):
+            mix_data.append([pt, str(mix_counts[pt]), f"{mix_pcts[pt]:.1f}%"])
+            
+        t_mix = Table(mix_data, colWidths=[200, 100, 100])
+        t_mix.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
+        ]))
+        story.append(t_mix)
+        story.append(Spacer(1, 15))
+        
+        # 2. Advanced Metrics Breakdown Table
+        story.append(Paragraph("🎯 Advanced Metrics Breakdown (Strike %, Whiff %, Called Strike %)", section_style))
+        adv_data = [["Pitch Type", "Thrown", "Total Strike %", "Whiff % (Swings)", "Called Strike %"]]
+        
+        for p_type in sort_pitch_series(stats_df["pitch_type"].unique()):
+            p_sub = stats_df[stats_df["pitch_type"] == p_type]
+            tp = len(p_sub)
+            called_s = len(p_sub[p_sub["result"] == "Called Strike"])
+            swing_s = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+            swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+            strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+            
+            cs_p = (called_s / tp * 100) if tp > 0 else 0.0
+            wh_p = (swing_s / swings * 100) if swings > 0 else 0.0
+            tot_s_p = (strikes / tp * 100) if tp > 0 else 0.0
+            
+            adv_data.append([p_type, str(tp), f"{tot_s_p:.1f}%", f"{wh_p:.1f}%", f"{cs_p:.1f}%"])
+            
+        t_adv = Table(adv_data, colWidths=[130, 70, 110, 110, 110])
+        t_adv.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
+        ]))
+        story.append(t_adv)
+        story.append(Spacer(1, 15))
+        
+        # 3. Count Breakdown Matrix Table
+        if "count" in stats_df.columns:
+            story.append(Paragraph("📊 Pitch Type % Breakdown by Count", section_style))
+            ct_table = pd.crosstab(stats_df["count"], stats_df["pitch_type"], normalize="index").mul(100).round(1)
+            existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
+            other_cols = [c for c in ct_table.columns if c not in existing_cols]
+            ct_table = ct_table[existing_cols + other_cols]
+            
+            ct_header = ["Count"] + list(ct_table.columns)
+            ct_rows = [ct_header]
+            for idx, row in ct_table.iterrows():
+                row_data = [str(idx)] + [f"{val:.1f}%" if pd.notnull(val) else "0.0%" for val in row]
+                ct_rows.append(row_data)
+                
+            t_ct = Table(ct_rows)
+            t_ct.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f0f2f6")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#2a2a40")),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdcdc"))
+            ]))
+            story.append(t_ct)
+            story.append(Spacer(1, 15))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 # --- MAIN APP MODES ---
 if mode == "Our Pitcher Tracker":
@@ -1056,17 +1169,44 @@ else:
     else:
         st.info("No pitch data logged yet.")
 
-# Sidebar Game Management & CSV Export
+# Sidebar Game Management, CSV, & PDF Export
 st.sidebar.markdown("---")
-st.sidebar.subheader("Game Management")
+st.sidebar.subheader("Game Management & Exports")
 
 if not df.empty:
+    # CSV Export Button
     st.sidebar.download_button(
-        label="📥 Export Pitch Logs (CSV)",
+        label="📥 Export Raw Logs (CSV)",
         data=df.to_csv(index=False).encode('utf-8'),
         file_name="TX_Pierce_Pitch_Logs_Export.csv",
         mime="text/csv",
     )
+    
+    # PDF Export Button (Generates calculated report based on current mode/pitcher)
+    if mode in ["Our Pitcher Tracker", "Our Pitching Coach Dashboard"]:
+        active_mode_df = df[df["mode"] == "Our Pitcher Tracker"]
+        current_target = st.session_state.get("selected_our_pitcher", "Pitcher")
+        pitcher_report_df = active_mode_df[active_mode_df["pitcher"] == current_target] if not active_mode_df.empty else pd.DataFrame()
+        pdf_bytes = generate_pdf_report("Our Pitcher Report", current_target, pitcher_report_df)
+        
+        st.sidebar.download_button(
+            label="📄 Export Calculated PDF Report",
+            data=pdf_bytes,
+            file_name=f"TX_Pierce_{current_target.replace(' ', '_')}_Report.pdf",
+            mime="application/pdf",
+        )
+    elif mode in ["Opponent Pitcher Scout", "Hitter On-Deck Cheat Sheet"]:
+        active_mode_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        current_target = st.session_state.get("selected_opp_pitcher", "Opponent Pitcher")
+        pitcher_report_df = active_mode_df[active_mode_df["pitcher"] == current_target] if not active_mode_df.empty else pd.DataFrame()
+        pdf_bytes = generate_pdf_report("Opponent Scout Report", current_target, pitcher_report_df)
+        
+        st.sidebar.download_button(
+            label="📄 Export Calculated PDF Report",
+            data=pdf_bytes,
+            file_name=f"TX_Pierce_Scout_{current_target.replace(' ', '_')}_Report.pdf",
+            mime="application/pdf",
+        )
 else:
     st.sidebar.info("No data available to export.")
 
