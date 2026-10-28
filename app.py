@@ -573,7 +573,7 @@ if mode == "Our Pitcher Tracker":
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
         if not our_df.empty:
-            selected_view_pitcher = st.selectbox("Select Pitcher to View", our_df["pitcher"].unique(), key="view_our_pitcher")
+            selected_view_pitcher = st.selectbox("Select Pitcher To View", our_df["pitcher"].unique(), key="view_our_pitcher")
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
