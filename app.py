@@ -87,7 +87,7 @@ if "opp_scout_batter_index" not in st.session_state:
 if "selected_opp_pitcher" not in st.session_state:
     st.session_state.selected_opp_pitcher = "Opponent Reliever"
 
-# Sidebar Mode Selection (Declared ONCE cleanly at the top)
+# Sidebar Mode Selection
 st.sidebar.header("Navigation")
 mode = st.sidebar.radio("Select Mode", [
     "Our Pitcher Tracker", 
@@ -537,6 +537,8 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
+                # FIXED: Force at-bat completion if button clicked OR pitch ends AB, 
+                # and explicitly clear override session state so selectbox updates immediately.
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
@@ -962,6 +964,8 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
+                # FIXED: Force at-bat completion if button clicked OR pitch ends AB,
+                # and explicitly clear override session state so selectbox updates immediately.
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
