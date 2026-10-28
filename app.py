@@ -198,7 +198,6 @@ def render_table_count_breakdown(pitcher_df):
         return
     
     ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
-    # Reorder columns based on PITCH_ORDER
     existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
     other_cols = [c for c in ct_table.columns if c not in existing_cols]
     ct_table = ct_table[existing_cols + other_cols]
@@ -1057,9 +1056,20 @@ else:
     else:
         st.info("No pitch data logged yet.")
 
-# Sidebar Reset Button
+# Sidebar Game Management & CSV Export
 st.sidebar.markdown("---")
 st.sidebar.subheader("Game Management")
+
+if not df.empty:
+    st.sidebar.download_button(
+        label="📥 Export Pitch Logs (CSV)",
+        data=df.to_csv(index=False).encode('utf-8'),
+        file_name="TX_Pierce_Pitch_Logs_Export.csv",
+        mime="text/csv",
+    )
+else:
+    st.sidebar.info("No data available to export.")
+
 if st.sidebar.button("🗑️ Clear Game Data / Reset"):
     try:
         supabase.table("pitch_logs").delete().neq("id", 0).execute()
@@ -1073,6 +1083,3 @@ if st.sidebar.button("🗑️ Clear Game Data / Reset"):
         st.rerun()
     except Exception as e:
         st.sidebar.error(f"Error clearing data: {e}")
-
-
-
