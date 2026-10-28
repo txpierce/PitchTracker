@@ -114,13 +114,28 @@ def load_data():
 
 df = load_data()
 
-# --- HELPER: RENDER VISUAL BARS & GLOW CARDS ---
+# --- HELPER: CUSTOM PITCH SORTING & RENDERERS ---
+PITCH_ORDER = ["Fastball", "Curveball", "Slider", "Changeup", "Splitter", "Sinker", "Sweeper"]
+
+def sort_pitch_series(series_or_index):
+    """Sorts a pandas Series or Index based on the preferred PITCH_ORDER."""
+    existing_items = list(series_or_index)
+    sorted_list = [p for p in PITCH_ORDER if p in existing_items]
+    # Include any unexpected residual pitch types at the end
+    for item in existing_items:
+        if item not in sorted_list:
+            sorted_list.append(item)
+    return sorted_list
+
 def render_glowing_bars(series, title_text="Pitch Distribution"):
     st.write(f"### {title_text}")
     if series.empty:
         st.info("No data available for visual breakdown.")
         return
-    for pitch_type, pct in series.items():
+    
+    sorted_index = sort_pitch_series(series.index)
+    for pitch_type in sorted_index:
+        pct = series[pitch_type]
         st.markdown(f"**{pitch_type}** ({pct:.1f}%)")
         st.markdown(f"""
         <div class="glow-bar-container">
@@ -134,8 +149,13 @@ def render_clean_advanced_metrics(pitcher_df):
         st.info("No pitch data available for advanced metrics.")
         return
 
-    for p_type in pitcher_df["pitch_type"].unique():
+    unique_pitches = pitcher_df["pitch_type"].unique()
+    sorted_pitches = sort_pitch_series(unique_pitches)
+
+    for p_type in sorted_pitches:
         p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
+        if p_sub.empty:
+            continue
         total_p = len(p_sub)
         called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
         swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
@@ -177,8 +197,13 @@ def render_table_count_breakdown(pitcher_df):
         st.info("No data available.")
         return
     
-    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%'
-    st.dataframe(ct_table, use_container_width=True)
+    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
+    # Reorder columns based on PITCH_ORDER
+    existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
+    other_cols = [c for c in ct_table.columns if c not in existing_cols]
+    ct_table = ct_table[existing_cols + other_cols]
+    
+    st.dataframe(ct_table.astype(str) + '%', use_container_width=True)
 
 def render_clean_batted_ball_profile(pitcher_df):
     st.write("### 📊 Batted Ball Profile & Outcomes")
@@ -191,8 +216,9 @@ def render_clean_batted_ball_profile(pitcher_df):
     hit_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1)
     
     all_pitches = list(set(list(contact_matrix.index) + list(hit_matrix.index)))
+    sorted_pitches = sort_pitch_series(all_pitches)
     
-    for pt in all_pitches:
+    for pt in sorted_pitches:
         contact_html = ""
         if pt in contact_matrix.index:
             for c_type, c_val in contact_matrix.loc[pt].items():
@@ -223,7 +249,10 @@ def render_clean_batted_ball_profile(pitcher_df):
 
 def render_clean_hitter_matchup(hitter_matchup_df):
     st.write("### 📊 Result Breakdown by Pitch")
-    for pt in hitter_matchup_df["pitch_type"].unique():
+    matchup_pitches = hitter_matchup_df["pitch_type"].unique()
+    sorted_matchup_pitches = sort_pitch_series(matchup_pitches)
+    
+    for pt in sorted_matchup_pitches:
         pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
         total_pt = len(pt_df)
         
@@ -321,7 +350,7 @@ if mode == "Our Pitcher Tracker":
         st.write(f"**Logging pitches for our pitcher:** `{current_our_pitcher}`")
         col1, col2 = st.columns(2)
         with col1:
-            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="our_pitch_type")
+            pitch_type = st.selectbox("Pitch Type", PITCH_ORDER, key="our_pitch_type")
         with col2:
             result = st.selectbox("Result", [
                 "Called Strike", "Swinging Strike", "Chase Swing & Miss", 
@@ -679,7 +708,7 @@ elif mode == "Opponent Pitcher Scout":
         
         col1, col2 = st.columns(2)
         with col1:
-            pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="scout_type")
+            pitch_type = st.selectbox("Pitch Type", PITCH_ORDER, key="scout_type")
         with col2:
             result = st.selectbox("Result", [
                 "Called Strike", "Swinging Strike", "Chase Swing & Miss", 
@@ -944,7 +973,7 @@ else:
         
         bp_col1, bp_col2 = st.columns(2)
         with bp_col1:
-            bp_pitch_type = st.selectbox("Pitch Type", ["Fastball", "Slider", "Curveball", "Changeup", "Splitter", "Sinker"], key="bp_type_v7")
+            bp_pitch_type = st.selectbox("Pitch Type", PITCH_ORDER, key="bp_type_v7")
         with bp_col2:
             bp_result = st.selectbox("Result", ["Strike", "Ball"], key="bp_result_v7")
             
@@ -1008,7 +1037,10 @@ else:
                 
             st.write("### 📈 Strike % by Pitch Type")
             
-            for p_type in pitcher_bp_df["pitch_type"].unique():
+            bp_pitches = pitcher_bp_df["pitch_type"].unique()
+            sorted_bp_pitches = sort_pitch_series(bp_pitches)
+            
+            for p_type in sorted_bp_pitches:
                 p_sub = pitcher_bp_df[pitcher_bp_df["pitch_type"] == p_type]
                 p_total = len(p_sub)
                 p_strikes = len(p_sub[p_sub["result"] == "Strike"])
