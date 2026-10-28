@@ -124,7 +124,6 @@ df = load_data()
 PITCH_ORDER = ["Fastball", "Curveball", "Slider", "Changeup", "Splitter", "Sinker", "Sweeper"]
 
 def sort_pitch_series(series_or_index):
-    """Sorts a pandas Series or Index based on the preferred PITCH_ORDER."""
     existing_items = list(series_or_index)
     sorted_list = [p for p in PITCH_ORDER if p in existing_items]
     for item in existing_items:
@@ -168,7 +167,7 @@ def render_clean_advanced_metrics(pitcher_df):
         chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
         ball_count = len(p_sub[p_sub["result"] == "Ball"])
         in_play_count = len(p_sub[p_sub["result"] == "In Play"])
-        total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+        total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play", "Strikeout"])])
         
         cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
         whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
@@ -248,7 +247,7 @@ def calculate_coach_situational_metrics(pitcher_df):
         first_three = pa[:3]
         if len(first_three) >= 3:
             valid_pas_for_2of3 += 1
-            strikes_in_first_3 = sum(1 for p in first_three if p["result"] in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])
+            strikes_in_first_3 = sum(1 for p in first_three if p["result"] in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play", "Strikeout"])
             if strikes_in_first_3 >= 2:
                 two_of_three_strikes_count += 1
                 
@@ -322,7 +321,7 @@ def generate_pdf_report(report_title, pitcher_name, stats_df):
             called_s = len(p_sub[p_sub["result"] == "Called Strike"])
             swing_s = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
             swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-            strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+            strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play", "Strikeout"])])
             
             cs_p = (called_s / tp * 100) if tp > 0 else 0.0
             wh_p = (swing_s / swings * 100) if swings > 0 else 0.0
@@ -458,6 +457,22 @@ if mode == "Our Pitcher Tracker":
         current_our_pitcher = selected_pitcher_option
         st.session_state.selected_our_pitcher = current_our_pitcher
 
+    # --- PERSISTENT BATTER INDEX SYNC FOR OUR TRACKER ---
+    current_pitcher_df = df[(df["mode"] == "Our Pitcher Tracker") & (df["pitcher"] == current_our_pitcher)] if not df.empty else pd.DataFrame()
+    if not current_pitcher_df.empty and "batter" in current_pitcher_df.columns:
+        # Count unique completed PA or look at the last logged batter and advance
+        last_logged_row = current_pitcher_df.iloc[-1]
+        last_batter = last_logged_row["batter"]
+        last_res = last_logged_row["result"]
+        last_cnt = last_logged_row["count"]
+        
+        if last_batter in opp_batters_list:
+            idx = opp_batters_list.index(last_batter)
+            if last_res in ["In Play", "Hit By Pitch", "Strikeout"] or last_cnt == "3-2" and last_res in ["Called Strike", "Swinging Strike", "Ball"]:
+                st.session_state.our_pitcher_batter_index = (idx + 1) % len(opp_batters_list)
+            else:
+                st.session_state.our_pitcher_batter_index = idx
+
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
     if opp_batters_list:
@@ -512,7 +527,6 @@ if mode == "Our Pitcher Tracker":
             
         if submitted or complete_at_bat:
             try:
-                # Automatic strikeout detection on 3 strikes
                 final_result = result
                 final_hit_type = hit_type if result == "In Play" else "N/A"
                 
@@ -685,7 +699,6 @@ elif mode == "Our Pitching Coach Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
             
-            # --- REORDERED METRIC CARDS ---
             fp_strike_pct = 0.0
             fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
             if not fp_df.empty:
@@ -695,7 +708,6 @@ elif mode == "Our Pitching Coach Dashboard":
             three_ball_pct = (len(coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]) / total_pitches * 100) if total_pitches > 0 else 0.0
             two_3_pct, ah_ev_pct, bh_pct = calculate_coach_situational_metrics(coach_pitcher_df)
 
-            # Row 1: 1st-Pitch Strike & 3-Ball Count Frequency
             col_m1, col_m2 = st.columns(2)
             with col_m1:
                 st.markdown(f"""
@@ -712,7 +724,6 @@ elif mode == "Our Pitching Coach Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Row 2: 2 Out of First 3 Strike %, Ahead/Even Count %, Behind Count %
             col_cm1, col_cm2, col_cm3 = st.columns(3)
             with col_cm1:
                 st.markdown(f"""
@@ -757,7 +768,6 @@ elif mode == "Our Pitching Coach Dashboard":
             render_clean_advanced_metrics(coach_pitcher_df)
             render_table_count_breakdown(coach_pitcher_df)
 
-            # --- INDIVIDUAL HITTER MATCHUP & AT-BAT OUTCOME SUMMARY ---
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & At-Bat Outcome Summary")
             
@@ -771,10 +781,8 @@ elif mode == "Our Pitching Coach Dashboard":
                 if not hitter_matchup_df.empty:
                     st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
                     
-                    # Compute individual at-bat outcomes for this selected hitter
                     pa_outcomes = []
                     current_pa_pitches = []
-                    
                     sorted_hitter_df = hitter_matchup_df.sort_values(by="timestamp", ascending=True) if "timestamp" in hitter_matchup_df.columns else hitter_matchup_df
                     
                     for idx, row in sorted_hitter_df.iterrows():
@@ -880,6 +888,21 @@ elif mode == "Opponent Pitcher Scout":
     else:
         current_opp_pitcher = selected_opp_option
         st.session_state.selected_opp_pitcher = current_opp_pitcher
+
+    # --- PERSISTENT BATTER INDEX SYNC FOR OPPONENT SCOUT ---
+    current_opp_scout_df = df[(df["mode"] == "Opponent Pitcher Scout") & (df["pitcher"] == current_opp_pitcher)] if not df.empty else pd.DataFrame()
+    if not current_opp_scout_df.empty and "batter" in current_opp_scout_df.columns:
+        last_logged_row = current_opp_scout_df.iloc[-1]
+        last_batter = last_logged_row["batter"]
+        last_res = last_logged_row["result"]
+        last_cnt = last_logged_row["count"]
+        
+        if last_batter in our_batters_list:
+            idx = our_batters_list.index(last_batter)
+            if last_res in ["In Play", "Hit By Pitch", "Strikeout"] or last_cnt == "3-2" and last_res in ["Called Strike", "Swinging Strike", "Ball"]:
+                st.session_state.opp_scout_batter_index = (idx + 1) % len(our_batters_list)
+            else:
+                st.session_state.opp_scout_batter_index = idx
 
     st.sidebar.markdown("---")
     st.sidebar.header("🛠️ Scorekeeper Correction")
