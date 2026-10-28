@@ -582,18 +582,7 @@ if mode == "Our Pitcher Tracker":
     if not df.empty and "pitcher" in df.columns:
         our_df = df[df["mode"] == "Our Pitcher Tracker"]
         if not our_df.empty:
-            our_pitchers_list = list(our_df["pitcher"].unique())
-            
-            default_view_index = 0
-            if current_our_pitcher in our_pitchers_list:
-                default_view_index = our_pitchers_list.index(current_our_pitcher)
-                
-            selected_view_pitcher = st.selectbox(
-                "Select Pitcher To View", 
-                our_pitchers_list, 
-                index=default_view_index, 
-                key="view_our_pitcher"
-            )
+            selected_view_pitcher = st.selectbox("Select Pitcher To View", our_df["pitcher"].unique(), key="view_our_pitcher")
             pitcher_df = our_df[our_df["pitcher"] == selected_view_pitcher]
             
             st.metric("Total Pitches Thrown", len(pitcher_df))
@@ -1020,18 +1009,7 @@ elif mode == "Opponent Pitcher Scout":
         opp_df = opp_df.sort_values(by="timestamp", ascending=True)
         
         if not opp_df.empty:
-            opp_pitchers_list = list(opp_df["pitcher"].unique())
-            
-            default_opp_view_index = 0
-            if current_opp_pitcher in opp_pitchers_list:
-                default_opp_view_index = opp_pitchers_list.index(current_opp_pitcher)
-                
-            selected_opp = st.selectbox(
-                "Select Opponent Pitcher to View", 
-                opp_pitchers_list, 
-                index=default_opp_view_index, 
-                key="view_opp_pitcher"
-            )
+            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_pitcher")
             opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
             
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
