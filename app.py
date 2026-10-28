@@ -499,7 +499,10 @@ if mode == "Our Pitcher Tracker":
         with col3:
             contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="our_contact")
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="our_hit")
+            hit_type = st.selectbox("Hit Outcome", [
+                "N/A", "Ground Out", "Fly Out", "Line Out", "Pop Out", 
+                "Single", "Double", "Triple", "Home Run"
+            ], key="our_hit")
             
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
@@ -509,18 +512,27 @@ if mode == "Our Pitcher Tracker":
             
         if submitted or complete_at_bat:
             try:
+                # Automatic strikeout detection on 3 strikes
+                final_result = result
+                final_hit_type = hit_type if result == "In Play" else "N/A"
+                
+                if st.session_state.our_pitcher_strikes == 2 and result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul", "Chase Contact / Foul"]:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
+                        final_result = "Strikeout"
+                        final_hit_type = "Strikeout"
+
                 supabase.table("pitch_logs").insert({
                     "mode": "Our Pitcher Tracker",
                     "pitcher": current_our_pitcher,
                     "batter": current_batter,
                     "count": current_count_str,
                     "pitch_type": pitch_type,
-                    "result": result,
+                    "result": final_result,
                     "contact_type": contact_type if result == "In Play" else "N/A",
-                    "hit_type": hit_type if result == "In Play" else "N/A"
+                    "hit_type": final_hit_type
                 }).execute()
                 
-                if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
+                if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
@@ -677,7 +689,7 @@ elif mode == "Our Pitching Coach Dashboard":
             fp_strike_pct = 0.0
             fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
             if not fp_df.empty:
-                fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play", "Strikeout"])])
                 fp_strike_pct = (fp_strikes / len(fp_df)) * 100
 
             three_ball_pct = (len(coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]) / total_pitches * 100) if total_pitches > 0 else 0.0
@@ -760,7 +772,6 @@ elif mode == "Our Pitching Coach Dashboard":
                     st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
                     
                     # Compute individual at-bat outcomes for this selected hitter
-                    # Group pitches by chronological order, recognizing plate appearance endings (In Play, Hit By Pitch, or 4th ball / 3rd strike triggers)
                     pa_outcomes = []
                     current_pa_pitches = []
                     
@@ -772,10 +783,11 @@ elif mode == "Our Pitching Coach Dashboard":
                         hit_outcome = row["hit_type"] if "hit_type" in row else "N/A"
                         
                         if cnt == "0-0" and current_pa_pitches:
-                            # Evaluate previous PA outcome
                             last_p = current_pa_pitches[-1]
-                            if last_p["result"] == "In Play":
-                                pa_outcomes.append(last_p.get("hit_type", "Out"))
+                            if last_p["result"] == "Strikeout":
+                                pa_outcomes.append("Strikeout")
+                            elif last_p["result"] == "In Play":
+                                pa_outcomes.append(last_p.get("hit_type", "Ground Out"))
                             elif last_p["result"] == "Hit By Pitch":
                                 pa_outcomes.append("Hit By Pitch")
                             else:
@@ -784,15 +796,21 @@ elif mode == "Our Pitching Coach Dashboard":
                         
                         current_pa_pitches.append(row)
                         
-                        # Check terminal conditions within the current PA sequence
-                        if res in ["In Play", "Hit By Pitch"]:
-                            pa_outcomes.append(hit_outcome if res == "In Play" else "Hit By Pitch")
+                        if res in ["In Play", "Hit By Pitch", "Strikeout"]:
+                            if res == "Strikeout":
+                                pa_outcomes.append("Strikeout")
+                            elif res == "Hit By Pitch":
+                                pa_outcomes.append("Hit By Pitch")
+                            else:
+                                pa_outcomes.append(hit_outcome if hit_outcome != "N/A" else "Ground Out")
                             current_pa_pitches = []
                             
                     if current_pa_pitches:
                         last_p = current_pa_pitches[-1]
-                        if last_p["result"] == "In Play":
-                            pa_outcomes.append(last_p.get("hit_type", "Out"))
+                        if last_p["result"] == "Strikeout":
+                            pa_outcomes.append("Strikeout")
+                        elif last_p["result"] == "In Play":
+                            pa_outcomes.append(last_p.get("hit_type", "Ground Out"))
                         elif last_p["result"] == "Hit By Pitch":
                             pa_outcomes.append("Hit By Pitch")
                         else:
@@ -903,7 +921,10 @@ elif mode == "Opponent Pitcher Scout":
         with col3:
             contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="scout_contact")
         with col4:
-            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="scout_hit")
+            hit_type = st.selectbox("Hit Outcome", [
+                "N/A", "Ground Out", "Fly Out", "Line Out", "Pop Out", 
+                "Single", "Double", "Triple", "Home Run"
+            ], key="scout_hit")
             
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
@@ -913,18 +934,26 @@ elif mode == "Opponent Pitcher Scout":
             
         if submitted or complete_at_bat:
             try:
+                final_result = result
+                final_hit_type = hit_type if result == "In Play" else "N/A"
+                
+                if st.session_state.opp_scout_strikes == 2 and result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Foul", "Chase Contact / Foul"]:
+                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
+                        final_result = "Strikeout"
+                        final_hit_type = "Strikeout"
+
                 supabase.table("pitch_logs").insert({
                     "mode": "Opponent Pitcher Scout",
                     "pitcher": current_opp_pitcher,
                     "batter": current_batter,
                     "count": current_count_str,
                     "pitch_type": pitch_type,
-                    "result": result,
+                    "result": final_result,
                     "contact_type": contact_type if result == "In Play" else "N/A",
-                    "hit_type": hit_type if result == "In Play" else "N/A"
+                    "hit_type": final_hit_type
                 }).execute()
                 
-                if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
+                if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
@@ -1017,7 +1046,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             with col_dm1:
                 deck_fp = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
                 if not deck_fp.empty:
-                    deck_fp_strikes = len(deck_fp[deck_fp["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    deck_fp_strikes = len(deck_fp[deck_fp["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play", "Strikeout"])])
                     deck_fp_pct = (deck_fp_strikes / len(deck_fp)) * 100
                     st.markdown(f"""
                     <div class="metric-card">
