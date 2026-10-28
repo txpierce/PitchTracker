@@ -516,7 +516,7 @@ if mode == "Our Pitcher Tracker":
         with btn_col2:
             complete_at_bat = st.form_submit_button("Complete At-Bat & Next Hitter ➔")
             
-        if submitted or complete_at_bat:
+        if submitted:
             try:
                 final_result = result
                 final_hit_type = hit_type if result == "In Play" else "N/A"
@@ -537,33 +537,49 @@ if mode == "Our Pitcher Tracker":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
-                    st.session_state.our_pitcher_balls = 0
-                    st.session_state.our_pitcher_strikes = 0
-                    st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
-                    
-                    # FIXED: Delete the selectbox widget cache so it updates on rerun
-                    if "our_hitter_override_select" in st.session_state:
-                        del st.session_state["our_hitter_override_select"]
+                # ONLY advance count, NEVER change batter on standard pitch log
+                if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
+                    if st.session_state.our_pitcher_strikes < 2:
+                        st.session_state.our_pitcher_strikes += 1
+                elif result == "Ball":
+                    if st.session_state.our_pitcher_balls < 3:
+                        st.session_state.our_pitcher_balls += 1
+                elif result in ["Foul", "Chase Contact / Foul"]:
+                    if st.session_state.our_pitcher_strikes < 2:
+                        st.session_state.our_pitcher_strikes += 1
                         
-                    st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
-                else:
-                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
-                        if st.session_state.our_pitcher_strikes < 2:
-                            st.session_state.our_pitcher_strikes += 1
-                    elif result == "Ball":
-                        if st.session_state.our_pitcher_balls < 3:
-                            st.session_state.our_pitcher_balls += 1
-                    elif result in ["Foul", "Chase Contact / Foul"]:
-                        if st.session_state.our_pitcher_strikes < 2:
-                            st.session_state.our_pitcher_strikes += 1
-                            
-                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_pitcher_balls}-{st.session_state.our_pitcher_strikes}")
-                
+                st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.our_pitcher_balls}-{st.session_state.our_pitcher_strikes}")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
+
+        elif complete_at_bat:
+            try:
+                supabase.table("pitch_logs").insert({
+                    "mode": "Our Pitcher Tracker",
+                    "pitcher": current_our_pitcher,
+                    "batter": current_batter,
+                    "count": current_count_str,
+                    "pitch_type": pitch_type,
+                    "result": result,
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
+                }).execute()
+                
+                # STRICTLY advance the batter here and reset count
+                st.session_state.our_pitcher_balls = 0
+                st.session_state.our_pitcher_strikes = 0
+                st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
+                
+                if "our_hitter_override_select" in st.session_state:
+                    del st.session_state["our_hitter_override_select"]
+                    
+                st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error completing at-bat: {e}")
 
     if st.button("↩️ Undo Last Logged Pitch (Our Tracker)"):
         try:
@@ -847,7 +863,6 @@ elif mode == "Our Pitching Coach Dashboard":
                     st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
             else:
                 st.info("No opponent batters available for review.")
-
         else:
             st.info("No pitches logged for our pitchers yet.")
             
@@ -944,7 +959,7 @@ elif mode == "Opponent Pitcher Scout":
         with btn_col2:
             complete_at_bat = st.form_submit_button("Complete At-Bat & Next Hitter ➔")
             
-        if submitted or complete_at_bat:
+        if submitted:
             try:
                 final_result = result
                 final_hit_type = hit_type if result == "In Play" else "N/A"
@@ -965,33 +980,49 @@ elif mode == "Opponent Pitcher Scout":
                     "hit_type": final_hit_type
                 }).execute()
                 
-                if complete_at_bat or result in ["In Play", "Hit By Pitch"] or final_result == "Strikeout":
-                    st.session_state.opp_scout_balls = 0
-                    st.session_state.opp_scout_strikes = 0
-                    st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
-                    
-                    # FIXED: Delete the selectbox widget cache so it updates on rerun
-                    if "opp_hitter_override_select" in st.session_state:
-                        del st.session_state["opp_hitter_override_select"]
+                # ONLY advance count, NEVER change batter on standard pitch log
+                if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
+                    if st.session_state.opp_scout_strikes < 2:
+                        st.session_state.opp_scout_strikes += 1
+                elif result == "Ball":
+                    if st.session_state.opp_scout_balls < 3:
+                        st.session_state.opp_scout_balls += 1
+                elif result in ["Foul", "Chase Contact / Foul"]:
+                    if st.session_state.opp_scout_strikes < 2:
+                        st.session_state.opp_scout_strikes += 1
                         
-                    st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
-                else:
-                    if result in ["Called Strike", "Swinging Strike", "Chase Swing & Miss"]:
-                        if st.session_state.opp_scout_strikes < 2:
-                            st.session_state.opp_scout_strikes += 1
-                    elif result == "Ball":
-                        if st.session_state.opp_scout_balls < 3:
-                            st.session_state.opp_scout_balls += 1
-                    elif result in ["Foul", "Chase Contact / Foul"]:
-                        if st.session_state.opp_scout_strikes < 2:
-                            st.session_state.opp_scout_strikes += 1
-                            
-                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
-                
+                st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
+
+        elif complete_at_bat:
+            try:
+                supabase.table("pitch_logs").insert({
+                    "mode": "Opponent Pitcher Scout",
+                    "pitcher": current_opp_pitcher,
+                    "batter": current_batter,
+                    "count": current_count_str,
+                    "pitch_type": pitch_type,
+                    "result": result,
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
+                }).execute()
+                
+                # STRICTLY advance the batter here and reset count
+                st.session_state.opp_scout_balls = 0
+                st.session_state.opp_scout_strikes = 0
+                st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
+                
+                if "opp_hitter_override_select" in st.session_state:
+                    del st.session_state["opp_hitter_override_select"]
+                    
+                st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error completing at-bat: {e}")
 
     if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
         try:
@@ -1185,7 +1216,7 @@ else:
                     "pitch_type": bp_pitch_type,
                     "result": bp_result,
                     "contact_type": "N/A", 
-                    "hit_type": "N/A"      
+                    "hit_type": "N/A"     
                 }).execute()
                 st.success(f"Logged {bp_pitch_type} ({bp_result}) successfully!")
                 st.cache_data.clear()
