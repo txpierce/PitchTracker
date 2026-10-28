@@ -454,8 +454,8 @@ if mode == "Our Pitcher Tracker":
 
     if selected_pitcher_option != st.session_state.prev_our_pitcher:
         st.session_state.prev_our_pitcher = selected_pitcher_option
-        if "our_hitter_override_select" in st.session_state:
-            del st.session_state["our_hitter_override_select"]
+        if "our_hitter_selectbox" in st.session_state:
+            del st.session_state["our_hitter_selectbox"]
 
     if selected_pitcher_option == "➕ Add New Reliever/Pitcher":
         current_our_pitcher = st.sidebar.text_input("Enter Reliever Name", value="Reliever 1", key="new_reliever_input")
@@ -474,7 +474,7 @@ if mode == "Our Pitcher Tracker":
             "Override Current Opponent Hitter", 
             opp_batters_list, 
             index=st.session_state.our_pitcher_batter_index,
-            key="our_hitter_override_select"
+            key="our_hitter_selectbox"
         )
         
         new_override_index = opp_batters_list.index(manual_override_opp)
@@ -568,8 +568,8 @@ if mode == "Our Pitcher Tracker":
                     st.session_state.our_pitcher_balls = 0
                     st.session_state.our_pitcher_strikes = 0
                     st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
-                    if "our_hitter_override_select" in st.session_state:
-                        del st.session_state["our_hitter_override_select"]
+                    if "our_hitter_selectbox" in st.session_state:
+                        del st.session_state["our_hitter_selectbox"]
                     st.success(f"At-bat ended! Advanced to next hitter: {opp_batters_list[st.session_state.our_pitcher_batter_index]}")
                 else:
                     st.session_state.our_pitcher_strikes = new_strikes
@@ -598,8 +598,8 @@ if mode == "Our Pitcher Tracker":
                 st.session_state.our_pitcher_strikes = 0
                 st.session_state.our_pitcher_batter_index = (st.session_state.our_pitcher_batter_index + 1) % len(opp_batters_list)
                 
-                if "our_hitter_override_select" in st.session_state:
-                    del st.session_state["our_hitter_override_select"]
+                if "our_hitter_selectbox" in st.session_state:
+                    del st.session_state["our_hitter_selectbox"]
                     
                 st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 st.cache_data.clear()
@@ -924,8 +924,8 @@ elif mode == "Opponent Pitcher Scout":
 
     if selected_opp_option != st.session_state.prev_opp_pitcher:
         st.session_state.prev_opp_pitcher = selected_opp_option
-        if "opp_hitter_override_select" in st.session_state:
-            del st.session_state["opp_hitter_override_select"]
+        if "opp_hitter_selectbox" in st.session_state:
+            del st.session_state["opp_hitter_selectbox"]
 
     if selected_opp_option == "➕ Add New Opponent Pitcher":
         current_opp_pitcher = st.sidebar.text_input("Enter Opponent Pitcher Name / #", value="Opponent Reliever", key="new_opp_input")
@@ -944,7 +944,7 @@ elif mode == "Opponent Pitcher Scout":
             "Override Current Our Hitter", 
             our_batters_list, 
             index=st.session_state.opp_scout_batter_index,
-            key="opp_hitter_override_select"
+            key="opp_hitter_selectbox"
         )
         
         selected_index_our = our_batters_list.index(manual_override_our)
@@ -1037,8 +1037,8 @@ elif mode == "Opponent Pitcher Scout":
                     st.session_state.opp_scout_balls = 0
                     st.session_state.opp_scout_strikes = 0
                     st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
-                    if "opp_hitter_override_select" in st.session_state:
-                        del st.session_state["opp_hitter_override_select"]
+                    if "opp_hitter_selectbox" in st.session_state:
+                        del st.session_state["opp_hitter_selectbox"]
                     st.success(f"At-bat ended! Advanced to next hitter: {our_batters_list[st.session_state.opp_scout_batter_index]}")
                 else:
                     st.session_state.opp_scout_strikes = new_strikes
@@ -1067,8 +1067,8 @@ elif mode == "Opponent Pitcher Scout":
                 st.session_state.opp_scout_strikes = 0
                 st.session_state.opp_scout_batter_index = (st.session_state.opp_scout_batter_index + 1) % len(our_batters_list)
                 
-                if "opp_hitter_override_select" in st.session_state:
-                    del st.session_state["opp_hitter_override_select"]
+                if "opp_hitter_selectbox" in st.session_state:
+                    del st.session_state["opp_hitter_selectbox"]
                     
                 st.success(f"At-bat complete for {current_batter}! Advanced to next hitter.")
                 st.cache_data.clear()
