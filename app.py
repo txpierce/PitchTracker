@@ -2,14 +2,12 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 import time
+import plotly.express as px
+import plotly.graph_objects as go
 from google import genai
 
 # Page Config
-st.set_page_config(
-    page_title="TX_Pierce - Pitch Tracker",
-    page_icon="⚾",
-    layout="centered"
-)
+st.set_page_config(page_title="TX_Pierce - Pitch Tracker", page_icon="⚾", layout="centered")
 
 # --- CUSTOM CSS FOR GLOWING EDGE HIGHLIGHTS & METRIC CARDS ---
 st.markdown("""
@@ -63,7 +61,7 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- INITIALIZE GEMINI CLIENT ---
+# --- GEMINI CLIENT & STRATEGY HELPER ---
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def get_gemini_dugout_approach(pitcher_name, summary_text, mode_type="hitter"):
@@ -99,16 +97,13 @@ st.title("⚾ TX_Pierce Pitch Tracker")
 
 # Sidebar Mode Selection
 st.sidebar.header("Navigation")
-mode = st.sidebar.radio(
-    "Select Mode", 
-    [
-        "Our Pitcher Tracker", 
-        "Our Pitching Coach Dashboard", 
-        "Opponent Pitcher Scout", 
-        "Hitter On-Deck Cheat Sheet",
-        "Bullpen Charting"
-    ]
-)
+mode = st.sidebar.radio("Select Mode", [
+    "Our Pitcher Tracker", 
+    "Our Pitching Coach Dashboard", 
+    "Opponent Pitcher Scout", 
+    "Hitter On-Deck Cheat Sheet",
+    "Bullpen Charting"
+])
 
 # --- DUAL LINEUP SETUP ---
 st.sidebar.markdown("---")
@@ -147,23 +142,16 @@ def load_data():
     try:
         response = supabase.table("pitch_logs").select("*").order("timestamp", desc=False).execute()
         return pd.DataFrame(response.data)
-    except Exception:
+    except Exception as e:
         return pd.DataFrame()
 
 df = load_data()
 
 # --- HELPER: CUSTOM PITCH SORTING & RENDERERS ---
-PITCH_ORDER = [
-    "Fastball",
-    "Curveball",
-    "Slider",
-    "Changeup",
-    "Splitter",
-    "Sinker",
-    "Sweeper",
-]
+PITCH_ORDER = ["Fastball", "Curveball", "Slider", "Changeup", "Splitter", "Sinker", "Sweeper"]
 
 def sort_pitch_series(series_or_index):
+    """Sorts a pandas Series or Index based on the preferred PITCH_ORDER."""
     existing_items = list(series_or_index)
     sorted_list = [p for p in PITCH_ORDER if p in existing_items]
     for item in existing_items:
@@ -176,6 +164,7 @@ def render_glowing_bars(series, title_text="Pitch Distribution"):
     if series.empty:
         st.info("No data available for visual breakdown.")
         return
+    
     sorted_index = sort_pitch_series(series.index)
     for pitch_type in sorted_index:
         pct = series[pitch_type]
@@ -186,22 +175,153 @@ def render_glowing_bars(series, title_text="Pitch Distribution"):
         </div>
         """, unsafe_allow_html=True)
 
-def render_glowing_metric_cards(series, title_text="0-0 Usage Breakdown"):
-    st.write(f"### {title_text}")
-    if series.empty:
+def render_clean_advanced_metrics(pitcher_df):
+    st.write("### 🎯 Advanced Metrics Breakdown")
+    if pitcher_df.empty or "pitch_type" not in pitcher_df.columns:
+        st.info("No pitch data available for advanced metrics.")
+        return
+
+    unique_pitches = pitcher_df["pitch_type"].unique()
+    sorted_pitches = sort_pitch_series(unique_pitches)
+
+    for p_type in sorted_pitches:
+        p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
+        if p_sub.empty:
+            continue
+        total_p = len(p_sub)
+        called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+        swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+        total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+        chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+        ball_count = len(p_sub[p_sub["result"] == "Ball"])
+        in_play_count = len(p_sub[p_sub["result"] == "In Play"])
+        total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+        
+        cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+        whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+        total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
+
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                ⚾ {p_type} &nbsp;|&nbsp; <span style="color: #a0a0c0; font-size: 13px;">Thrown: {total_p} &bull; Balls: {ball_count} &bull; In Play: {in_play_count} &bull; Chase: {chase_count}</span>
+            </div>
+            <div style="display: flex; gap: 15px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Total Strike %: <b>{total_strike_pct:.1f}%</b> ({total_strikes}/{total_p})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                </div>
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Whiff % (Swings): <b>{whiff_pct:.1f}%</b> ({swinging_strikes}/{total_swings})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                </div>
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Called Strike %: <b>{cs_pct:.1f}%</b> ({called_strikes}/{total_p})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_table_count_breakdown(pitcher_df):
+    st.write("### 📊 Pitch Type % Breakdown by Count")
+    if pitcher_df.empty or "count" not in pitcher_df.columns:
         st.info("No data available.")
         return
-    sorted_index = sort_pitch_series(series.index)
-    cols = st.columns(min(len(sorted_index), 3))
-    for idx, pitch_type in enumerate(sorted_index):
-        pct = series[pitch_type]
-        with cols[idx % len(cols)]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>{pitch_type}</h3>
-                <h2>{pct:.1f}%</h2>
+    
+    ct_table = pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1)
+    existing_cols = [c for c in PITCH_ORDER if c in ct_table.columns]
+    other_cols = [c for c in ct_table.columns if c not in existing_cols]
+    ct_table = ct_table[existing_cols + other_cols]
+    
+    st.dataframe(ct_table.astype(str) + '%', use_container_width=True)
+
+def render_clean_batted_ball_profile(pitcher_df):
+    st.write("### 📊 Batted Ball Profile & Outcomes")
+    in_play_df = pitcher_df[pitcher_df["contact_type"] != "N/A"]
+    if in_play_df.empty:
+        st.info("No batted ball data recorded yet.")
+        return
+    
+    contact_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["contact_type"], normalize="index").mul(100).round(1)
+    hit_matrix = pd.crosstab(in_play_df["pitch_type"], in_play_df["hit_type"], normalize="index").mul(100).round(1)
+    
+    all_pitches = list(set(list(contact_matrix.index) + list(hit_matrix.index)))
+    sorted_pitches = sort_pitch_series(all_pitches)
+    
+    for pt in sorted_pitches:
+        contact_html = ""
+        if pt in contact_matrix.index:
+            for c_type, c_val in contact_matrix.loc[pt].items():
+                if c_val > 0:
+                    contact_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{c_type}: <b>{c_val:.1f}%</b></span>"
+                    
+        hit_html = ""
+        if pt in hit_matrix.index:
+            for h_type, h_val in hit_matrix.loc[pt].items():
+                if h_val > 0:
+                    hit_html += f"<span style='background: #1e1e2f; padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-right: 6px; border: 1px solid #2a2a40;'>{h_type}: <b>{h_val:.1f}%</b></span>"
+
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                ⚾ {pt}
             </div>
-            """, unsafe_allow_html=True)
+            <div style="margin-bottom: 8px;">
+                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Contact Types:</div>
+                <div>{contact_html if contact_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
+            </div>
+            <div>
+                <div style="font-size: 12px; color: #a0a0c0; margin-bottom: 4px;">Hit Outcomes:</div>
+                <div>{hit_html if hit_html else '<span style="color:#666; font-size:12px;">N/A</span>'}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_clean_hitter_matchup(hitter_matchup_df):
+    st.write("### 📊 Result Breakdown by Pitch")
+    matchup_pitches = hitter_matchup_df["pitch_type"].unique()
+    sorted_matchup_pitches = sort_pitch_series(matchup_pitches)
+    
+    for pt in sorted_matchup_pitches:
+        pt_df = hitter_matchup_df[hitter_matchup_df["pitch_type"] == pt]
+        total_pt = len(pt_df)
+        
+        take_strike = len(pt_df[pt_df["result"] == "Called Strike"])
+        take_ball = len(pt_df[pt_df["result"] == "Ball"])
+        chase_strike = len(pt_df[pt_df["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul"])])
+        foul_ball = len(pt_df[pt_df["result"].isin(["Foul"])])
+        put_in_play = len(pt_df[pt_df["result"] == "In Play"])
+        
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                📌 {pt} &nbsp;|&nbsp; <span style="color: #a0a0c0; font-size: 13px;">Total Thrown: {total_pt}</span>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Take Strike</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_strike}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Take Ball</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{take_ball}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Chase Strike</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{chase_strike}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Foul Ball</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{foul_ball}</div>
+                </div>
+                <div style="flex: 1; min-width: 80px; background: #1e1e2f; padding: 8px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 11px; color: #a0a0c0;">Put in Play</span>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff;">{put_in_play}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # --- MAIN APP MODES ---
 if mode == "Our Pitcher Tracker":
@@ -352,7 +472,7 @@ if mode == "Our Pitcher Tracker":
                     zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
                     if not zero_zero.empty:
                         zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
-                        render_glowing_metric_cards(zz_mix, title_text="🎯 0-0 Pitch Usage")
+                        render_glowing_bars(zz_mix, title_text="🎯 0-0 Pitch Usage")
                     else:
                         st.info("No 0-0 pitches logged yet.")
 
@@ -363,42 +483,15 @@ if mode == "Our Pitcher Tracker":
                 else:
                     st.info("No 2-strike counts logged yet.")
 
-                st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-                metrics_rows = []
-                for p_type in sort_pitch_series(pitcher_df["pitch_type"].unique()):
-                    p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
-                    total_p = len(p_sub)
-                    called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                    swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                    total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                    total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    
-                    cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                    whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                    total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
-
-                    metrics_rows.append({
-                        "Pitch Type": p_type,
-                        "Total Thrown": total_p,
-                        "Called Strike %": f"{cs_pct:.1f}%",
-                        "Whiff % (on Swings)": f"{whiff_pct:.1f}%",
-                        "Total Strike %": f"{total_strike_pct:.1f}%",
-                        "Chase Count": chase_count
-                    })
-                st.dataframe(pd.DataFrame(metrics_rows), hide_index=True)
-
-                st.write("### 📊 Pitch Type % Breakdown by Count")
-                st.dataframe(
-                    pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index")
-                    .mul(100).round(1).astype(str) + '%'
-                )
+                render_clean_advanced_metrics(pitcher_df)
+                render_table_count_breakdown(pitcher_df)
+                render_clean_batted_ball_profile(pitcher_df)
         else:
             st.info("No pitches logged for our pitchers yet.")
 
 elif mode == "Our Pitching Coach Dashboard":
     st.header("📋 Our Pitching Coach Dashboard")
-    st.write("Real-time visual diagnostic feedback, 1st-pitch strike percentages, 3-ball count frequency, USA Pitch Smart guidelines, and AI strategy.")
+    st.write("Real-time visual diagnostic feedback, 1st-pitch strike percentages, 3-ball count frequency, and pitch mix realities for our pitching staff.")
     
     auto_refresh_coach = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False, key="coach_refresh")
     
@@ -409,43 +502,93 @@ elif mode == "Our Pitching Coach Dashboard":
             coach_pitcher_df = our_df[our_df["pitcher"] == coach_opp]
             
             total_pitches = len(coach_pitcher_df)
-            st.metric("Total Pitches Thrown", total_pitches)
             
-            # --- USA PITCH SMART REST CALCULATOR ---
-            age_bracket = st.selectbox("Select Pitcher Age Bracket (USA Pitch Smart)", ["17-18 Years", "15-16 Years", "13-14 Years", "11-12 Years"])
-            rest_days = "0 Days (Eligible Tomorrow)"
-            if "17-18" in age_bracket:
-                if total_pitches >= 76: rest_days = "4 Required Rest Days"
-                elif total_pitches >= 61: rest_days = "3 Required Rest Days"
-                elif total_pitches >= 46: rest_days = "2 Required Rest Days"
-                elif total_pitches >= 31: rest_days = "1 Required Rest Day"
-            elif "15-16" in age_bracket:
-                if total_pitches >= 76: rest_days = "4 Required Rest Days"
-                elif total_pitches >= 61: rest_days = "3 Required Rest Days"
-                elif total_pitches >= 46: rest_days = "2 Required Rest Days"
-                elif total_pitches >= 31: rest_days = "1 Required Rest Day"
+            selected_age_group = st.selectbox("Select Pitcher Age Group (USA Pitch Smart)", [
+                "7–8", "9–10", "11–12", "13–14", "15–16", "17–18", "19–22"
+            ], key="pitch_smart_age")
 
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>⚾ USA Pitch Smart Guideline</h3>
-                <h2>{rest_days}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+            def get_pitch_smart_rest(age_group, count):
+                if count == 0:
+                    return "0 Days Rest", "Daily Max: See Table"
+                
+                if age_group == "7–8":
+                    max_p = 50
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    else: rest = "Exceeds Daily Maximum!"
+                elif age_group == "9–10":
+                    max_p = 75
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    elif count <= 65: rest = "3 Days Rest (51–65)"
+                    else: rest = "4 Days Rest (66+)"
+                elif age_group in ["11–12", "13–14"]:
+                    max_p = 85 if age_group == "11–12" else 95
+                    if count <= 20: rest = "0 Days Rest (1–20)"
+                    elif count <= 35: rest = "1 Day Rest (21–35)"
+                    elif count <= 50: rest = "2 Days Rest (36–50)"
+                    elif count <= 65: rest = "3 Days Rest (51–65)"
+                    else: rest = "4 Days Rest (66+)"
+                elif age_group == "15–16":
+                    max_p = 95
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 75: rest = "3 Days Rest (61–75)"
+                    else: rest = "4 Days Rest (76+)"
+                elif age_group == "17–18":
+                    max_p = 105
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 80: rest = "3 Days Rest (61–80)"
+                    else: rest = "4 Days Rest (81+)"
+                else:
+                    max_p = 120
+                    if count <= 30: rest = "0 Days Rest (1–30)"
+                    elif count <= 45: rest = "1 Day Rest (31–45)"
+                    elif count <= 60: rest = "2 Days Rest (46–60)"
+                    elif count <= 80: rest = "3 Days Rest (61–80)"
+                    else: rest = "4 Days Rest (81–105+)"
+                
+                return rest, f"Daily Max: {max_p}"
+
+            rest_req, max_limit_str = get_pitch_smart_rest(selected_age_group, total_pitches)
+
+            col_stat1, col_stat2 = st.columns(2)
+            with col_stat1:
+                st.metric("Total Pitches Thrown", total_pitches)
+            with col_stat2:
+                st.markdown(f"""
+                <div class="metric-card" style="padding: 10px;">
+                    <h3>⚾ Pitch Smart Rest Required</h3>
+                    <h2 style="font-size: 20px; color: #00ccff;">{rest_req}</h2>
+                    <p style="color: #a0a0c0; font-size: 12px; margin: 0;">({max_limit_str} for {selected_age_group} yrs)</p>
+                </div>
+                """, unsafe_allow_html=True)
             
             col_m1, col_m2 = st.columns(2)
+            
             with col_m1:
                 fp_df = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not fp_df.empty:
                     fp_strikes = len(fp_df[fp_df["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
                     fp_strike_pct = (fp_strikes / len(fp_df)) * 100
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>{fp_strike_pct:.1f}%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    fp_strike_pct = 0.0
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
-                    <h2>{fp_strike_pct:.1f}%</h2>
-                </div>
-                """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>0.0%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             with col_m2:
                 three_ball_df = coach_pitcher_df[coach_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]
@@ -464,33 +607,62 @@ elif mode == "Our Pitching Coach Dashboard":
             with col_y:
                 coach_zz = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not coach_zz.empty:
-                    render_glowing_metric_cards(coach_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                    render_glowing_bars(coach_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+            
+            coach_ts = coach_pitcher_df[coach_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not coach_ts.empty:
+                render_glowing_bars(coach_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Breakdown")
+            else:
+                st.info("No 2-strike counts logged yet.")
 
-            # --- 🤖 REAL-TIME GEMINI AI STRATEGY CARD ---
+            render_clean_advanced_metrics(coach_pitcher_df)
+            render_table_count_breakdown(coach_pitcher_df)
+            render_clean_batted_ball_profile(coach_pitcher_df)
+
+            # --- REAL-TIME GEMINI AI STRATEGIC PITCHER APPROACH ---
             st.markdown("---")
             st.subheader("🤖 Real-Time Gemini AI Strategic Pitcher Approach")
             if total_pitches >= 3:
                 if st.button("⚡ Generate Live AI Pitching Strategy", key="gemini_coach_btn"):
-                    summary_str = f"Pitcher: {coach_opp}, Total Pitches: {total_pitches}, FPS%: {fp_strike_pct:.1f}%, 3-Ball%: {three_ball_pct:.1f}%, Overall Pitch Mix: {mix.to_dict()}"
+                    fp_pct_val = fp_strike_pct if 'fp_strike_pct' in locals() else 0.0
+                    summary_str = f"Pitcher: {coach_opp}, Total Pitches: {total_pitches}, FPS%: {fp_pct_val:.1f}%, 3-Ball%: {three_ball_pct:.1f}%, Overall Pitch Mix: {mix.to_dict()}"
                     with st.spinner("Gemini is analyzing live pitching metrics..."):
                         ai_advice = get_gemini_dugout_approach(coach_opp, summary_str, mode_type="coach")
                         st.info(f"### 🤖 Gemini Live Pitching Adjustments\n{ai_advice}")
             else:
                 st.info("Log at least 3 pitches to enable real-time Gemini AI strategy.")
 
-            # --- DUGOUT COACH FEEDBACK AT BOTTOM ---
             st.markdown("---")
-            st.markdown("### 🧠 Diagnostic Summary Insights")
-            if total_pitches >= 5:
-                top_pitch = mix.idxmax()
-                top_pct = mix.max()
-                st.info(f"""
-                * **Primary Offering:** `{coach_opp}` relies on `{top_pitch}` (`{top_pct:.1f}%` usage).
-                * **First-Pitch Command:** FPS% stands at `{fp_strike_pct:.1f}%`.
-                * **Leverage Alert:** 3-ball counts represent `{three_ball_pct:.1f}%` of total volume.
-                """)
+            st.subheader("👤 Individual Hitter Matchup & History Breakdown")
+            
+            logged_hitters = list(coach_pitcher_df["batter"].unique()) if "batter" in coach_pitcher_df.columns else []
+            hitter_review_options = logged_hitters if logged_hitters else opp_batters_list
+            
+            if hitter_review_options:
+                selected_review_hitter = st.selectbox("Select Opponent Hitter to Review Matchup", hitter_review_options, key="coach_hitter_review_select")
+                hitter_matchup_df = coach_pitcher_df[coach_pitcher_df["batter"] == selected_review_hitter]
+                
+                if not hitter_matchup_df.empty:
+                    st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
+                    
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        st.write("**Pitch Types Thrown to Hitter**")
+                        h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
+                        render_glowing_bars(h_mix, title_text="Hitter Pitch Mix Faced")
+                    with hc2:
+                        pass
+                        
+                    render_clean_hitter_matchup(hitter_matchup_df)
+                    
+                    st.write("**Detailed Pitch Log History vs. Hitter**")
+                    st.dataframe(hitter_matchup_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
+                else:
+                    st.info(f"No logged pitch data found for {selected_review_hitter} against {coach_opp}.")
             else:
-                st.info("No pitches logged for our pitchers yet.")
+                st.info("No opponent batters available for review.")
         else:
             st.info("No pitches logged for our pitchers yet.")
             
@@ -562,6 +734,14 @@ elif mode == "Opponent Pitcher Scout":
                 "Chase Contact / Foul", "Ball", "Foul", "In Play", "Hit By Pitch"
             ], key="scout_result")
             
+        st.markdown("---")
+        st.write("**If Ball In Play:**")
+        col3, col4 = st.columns(2)
+        with col3:
+            contact_type = st.selectbox("Contact Type", ["N/A", "Ground Ball (GB)", "Fly Ball (FB)", "Line Drive (LD)", "Pop Up (PU)"], key="scout_contact")
+        with col4:
+            hit_type = st.selectbox("Hit Outcome", ["N/A", "Out", "Single", "Double", "Triple", "Home Run"], key="scout_hit")
+            
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
             submitted = st.form_submit_button("Log Pitch & Advance Count")
@@ -577,8 +757,8 @@ elif mode == "Opponent Pitcher Scout":
                     "count": current_count_str,
                     "pitch_type": pitch_type,
                     "result": result,
-                    "contact_type": "N/A",
-                    "hit_type": "N/A"
+                    "contact_type": contact_type if result == "In Play" else "N/A",
+                    "hit_type": hit_type if result == "In Play" else "N/A"
                 }).execute()
                 
                 if complete_at_bat or result in ["In Play", "Hit By Pitch"]:
@@ -593,28 +773,71 @@ elif mode == "Opponent Pitcher Scout":
                     elif result == "Ball":
                         if st.session_state.opp_scout_balls < 3:
                             st.session_state.opp_scout_balls += 1
+                    elif result in ["Foul", "Chase Contact / Foul"]:
+                        if st.session_state.opp_scout_strikes < 2:
+                            st.session_state.opp_scout_strikes += 1
                             
+                    st.success(f"Logged {pitch_type} ({result}). Count is now {st.session_state.opp_scout_balls}-{st.session_state.opp_scout_strikes}")
+                
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Error logging pitch: {e}")
 
+    if st.button("↩️ Undo Last Logged Pitch (Opponent Scout)"):
+        try:
+            recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Opponent Pitcher Scout").order("timestamp", desc=True).limit(1).execute()
+            if recent_res.data:
+                last_id = recent_res.data[0]["id"]
+                supabase.table("pitch_logs").delete().eq("id", last_id).execute()
+                st.cache_data.clear()
+                st.success("Successfully deleted the last logged pitch!")
+                st.rerun()
+            else:
+                st.warning("No pitches to undo.")
+        except Exception as e:
+            st.error(f"Error undoing pitch: {e}")
+
     st.markdown("---")
-    st.subheader("💡 Scout Analytics & Breakdown")
+    st.subheader("💡 Instant Hitter Cheat Sheet & Matchup Breakdown")
+    
     if not df.empty and "mode" in df.columns:
         opp_df = df[df["mode"] == "Opponent Pitcher Scout"]
+        
         if not opp_df.empty:
-            selected_opp_view = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_scout")
-            opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp_view]
+            selected_opp = st.selectbox("Select Opponent Pitcher to View", opp_df["pitcher"].unique(), key="view_opp_pitcher")
+            opp_pitcher_df = opp_df[opp_df["pitcher"] == selected_opp]
+            
             st.metric("Total Pitches Charted", len(opp_pitcher_df))
-            mix = opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
-            render_glowing_bars(mix, title_text="📊 Overall Pitch Mix")
+            
+            col_x, col_y = st.columns(2)
+            with col_x:
+                mix = opp_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
+                render_glowing_bars(mix, title_text="Overall Pitch Mix")
+            with col_y:
+                opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
+                if not opp_zz.empty:
+                    render_glowing_bars(opp_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
+            
+            opp_ts = opp_pitcher_df[opp_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not opp_ts.empty:
+                render_glowing_bars(opp_ts["pitch_type"].value_counts(normalize=True) * 100, title_text="Putaway Breakdown")
+            else:
+                st.info("No 2-strike counts logged yet.")
+
+            render_clean_advanced_metrics(opp_pitcher_df)
+            render_table_count_breakdown(opp_pitcher_df)
+            render_clean_batted_ball_profile(opp_pitcher_df)
         else:
             st.info("No opponent pitches charted yet.")
+    else:
+        st.info("No pitch data logged yet.")
 
 elif mode == "Hitter On-Deck Cheat Sheet":
     st.header("🧢 Hitter On-Deck Cheat Sheet")
-    st.write("Dedicated view for hitters to review full opponent pitcher scouting, count breakdowns, and live AI game-plan cards.")
+    st.write("Dedicated view for hitters to review full opponent pitcher scouting, count breakdowns, and live game-plan action cards.")
     
     auto_refresh = st.checkbox("🔄 Auto-Refresh Screen (Every 5 Seconds)", value=False)
     
@@ -627,21 +850,93 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             total_deck_pitches = len(deck_pitcher_df)
             st.metric("Total Pitches Charted", total_deck_pitches)
             
+            col_dm1, col_dm2 = st.columns(2)
+            with col_dm1:
+                deck_fp = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_fp.empty:
+                    deck_fp_strikes = len(deck_fp[deck_fp["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+                    deck_fp_pct = (deck_fp_strikes / len(deck_fp)) * 100
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>{deck_fp_pct:.1f}%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 1st-Pitch Strike % (FPS%)</h3>
+                        <h2>0.0%</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col_dm2:
+                deck_three_ball = deck_pitcher_df[deck_pitcher_df["count"].isin(["3-0", "3-1", "3-2"])]
+                deck_three_pct = (len(deck_three_ball) / total_deck_pitches * 100) if total_deck_pitches > 0 else 0.0
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>⚠️ 3-Ball Count Frequency</h3>
+                    <h2>{deck_three_pct:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
+
             col_dx, col_dy = st.columns(2)
             with col_dx:
                 deck_mix = deck_pitcher_df["pitch_type"].value_counts(normalize=True) * 100
                 render_glowing_bars(deck_mix, title_text="📊 Overall Pitch Mix")
             with col_dy:
-                deck_zz = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
-                if not deck_zz.empty:
-                    render_glowing_metric_cards(deck_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                deck_zz_card = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
+                if not deck_zz_card.empty:
+                    render_glowing_bars(deck_zz_card["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                else:
+                    st.info("No 0-0 pitches logged.")
 
-            # --- 🤖 REAL-TIME GEMINI AI HITTER GAME PLAN ---
+            deck_ts_bars = deck_pitcher_df[deck_pitcher_df["count"].isin(["0-2", "1-2", "2-2", "3-2"])]
+            if not deck_ts_bars.empty:
+                render_glowing_bars(deck_ts_bars["pitch_type"].value_counts(normalize=True) * 100, title_text="🚨 2-Strike Putaway Breakdown")
+            else:
+                st.info("No 2-strike counts logged yet.")
+
+            render_clean_advanced_metrics(deck_pitcher_df)
+            render_table_count_breakdown(deck_pitcher_df)
+            render_clean_batted_ball_profile(deck_pitcher_df)
+
             st.markdown("---")
-            st.subheader("🤖 Real-Time Gemini AI Hitter Game Plan")
+            st.subheader("👤 Individual Hitter Review & Strategic Approach")
+            
+            deck_hitters = list(deck_pitcher_df["batter"].unique()) if "batter" in deck_pitcher_df.columns else []
+            deck_hitter_options = deck_hitters if deck_hitters else our_batters_list
+            
+            if deck_hitter_options:
+                selected_deck_hitter = st.selectbox("Select Our Hitter to Review Matchup", deck_hitter_options, key="deck_hitter_review_select")
+                hitter_scout_df = deck_pitcher_df[deck_pitcher_df["batter"] == selected_deck_hitter]
+                
+                if not hitter_scout_df.empty:
+                    st.metric(f"Total Pitches Seen by {selected_deck_hitter}", len(hitter_scout_df))
+                    
+                    hc1, hc2 = st.columns(2)
+                    with hc1:
+                        st.write("**Pitch Mix Faced**")
+                        h_mix_deck = hitter_scout_df["pitch_type"].value_counts(normalize=True) * 100
+                        render_glowing_bars(h_mix_deck, title_text="Pitch Distribution")
+                    with hc2:
+                        pass
+                    
+                    render_clean_hitter_matchup(hitter_scout_df)
+                    
+                    st.write("**Detailed At-Bat Log History**")
+                    st.dataframe(hitter_scout_df[["timestamp", "count", "pitch_type", "result", "contact_type", "hit_type"]], hide_index=True)
+                else:
+                    st.info(f"No logged pitch data found for {selected_deck_hitter} against {deck_opp}.")
+            else:
+                st.info("No our batters available for review.")
+
+            # --- REAL-TIME GEMINI AI STRATEGIC PITCHER APPROACH FOR HITTERS ---
+            st.markdown("---")
+            st.subheader("🤖 Real-Time Gemini AI Strategic Pitcher Approach")
             if total_deck_pitches >= 3:
                 if st.button("⚡ Generate Live AI Hitter Approach", key="gemini_hitter_btn"):
-                    deck_zz_data = deck_zz["pitch_type"].value_counts(normalize=True).to_dict() if not deck_zz.empty else "N/A"
+                    deck_zz_data = deck_zz_card["pitch_type"].value_counts(normalize=True).to_dict() if not deck_zz_card.empty else "N/A"
                     summary_str = f"Opponent Pitcher: {deck_opp}, Total Pitches Charted: {total_deck_pitches}, Overall Mix: {deck_mix.to_dict()}, 0-0 Mix: {deck_zz_data}"
                     with st.spinner("Gemini is analyzing opponent pitching tendencies..."):
                         ai_advice = get_gemini_dugout_approach(deck_opp, summary_str, mode_type="hitter")
@@ -679,14 +974,7 @@ else:
         existing_bullpens = list(df[df["mode"] == "Bullpen Charting"]["pitcher"].unique())
         
     bp_options = existing_bullpens + ["➕ Add New Bullpen Pitcher"]
-    
-    bp_default_index = 0
-    if existing_bullpens:
-        bp_default_index = 0
-    else:
-        bp_default_index = len(bp_options) - 1
-
-    selected_bp_option = st.sidebar.selectbox("Bullpen Pitcher", bp_options, index=bp_default_index, key="bp_select_side")
+    selected_bp_option = st.sidebar.selectbox("Bullpen Pitcher", bp_options, index=0 if existing_bullpens else len(bp_options)-1, key="bp_select_side")
     
     if selected_bp_option == "➕ Add New Bullpen Pitcher":
         current_bp_pitcher = st.sidebar.text_input("Enter Pitcher Name / #", value="Pitcher 1", key="bp_name_input")
@@ -722,6 +1010,20 @@ else:
             except Exception as e:
                 st.error(f"Error logging bullpen pitch: {e}")
 
+    if st.button("↩️ Undo Last Logged Bullpen Pitch"):
+        try:
+            recent_res = supabase.table("pitch_logs").select("id").eq("mode", "Bullpen Charting").order("timestamp", desc=True).limit(1).execute()
+            if recent_res.data:
+                last_id = recent_res.data[0]["id"]
+                supabase.table("pitch_logs").delete().eq("id", last_id).execute()
+                st.cache_data.clear()
+                st.success("Successfully deleted the bullpen pitch!")
+                st.rerun()
+            else:
+                st.warning("No bullpen pitches to undo.")
+        except Exception as e:
+            st.error(f"Error undoing bullpen pitch: {e}")
+
     st.markdown("---")
     st.subheader("📊 Bullpen Session Analytics")
     
@@ -747,6 +1049,7 @@ else:
                 """, unsafe_allow_html=True)
                 
             st.write("### 📈 Strike % by Pitch Type")
+            
             bp_pitches = pitcher_bp_df["pitch_type"].unique()
             sorted_bp_pitches = sort_pitch_series(bp_pitches)
             
@@ -773,6 +1076,12 @@ st.sidebar.subheader("Game Management")
 if st.sidebar.button("🗑️ Clear Game Data / Reset"):
     try:
         supabase.table("pitch_logs").delete().neq("id", 0).execute()
+        st.session_state.our_pitcher_balls = 0
+        st.session_state.our_pitcher_strikes = 0
+        st.session_state.our_pitcher_batter_index = 0
+        st.session_state.opp_scout_balls = 0
+        st.session_state.opp_scout_strikes = 0
+        st.session_state.opp_scout_batter_index = 0
         st.sidebar.success("Game data cleared successfully!")
         st.rerun()
     except Exception as e:
