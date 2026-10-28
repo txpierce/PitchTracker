@@ -745,9 +745,9 @@ elif mode == "Our Pitching Coach Dashboard":
             render_clean_advanced_metrics(coach_pitcher_df)
             render_table_count_breakdown(coach_pitcher_df)
 
-            # --- NEW INDIVIDUAL HITTER MATCHUP & HISTORY BREAKDOWN SECTION ---
+            # --- INDIVIDUAL HITTER MATCHUP & AT-BAT OUTCOME SUMMARY ---
             st.markdown("---")
-            st.subheader("👤 Individual Hitter Matchup & History Breakdown")
+            st.subheader("👤 Individual Hitter Matchup & At-Bat Outcome Summary")
             
             logged_hitters = list(coach_pitcher_df["batter"].unique()) if "batter" in coach_pitcher_df.columns else []
             hitter_review_options = logged_hitters if logged_hitters else opp_batters_list
@@ -759,6 +759,51 @@ elif mode == "Our Pitching Coach Dashboard":
                 if not hitter_matchup_df.empty:
                     st.metric(f"Total Pitches Thrown to {selected_review_hitter}", len(hitter_matchup_df))
                     
+                    # Compute individual at-bat outcomes for this selected hitter
+                    # Group pitches by chronological order, recognizing plate appearance endings (In Play, Hit By Pitch, or 4th ball / 3rd strike triggers)
+                    pa_outcomes = []
+                    current_pa_pitches = []
+                    
+                    sorted_hitter_df = hitter_matchup_df.sort_values(by="timestamp", ascending=True) if "timestamp" in hitter_matchup_df.columns else hitter_matchup_df
+                    
+                    for idx, row in sorted_hitter_df.iterrows():
+                        cnt = row["count"]
+                        res = row["result"]
+                        hit_outcome = row["hit_type"] if "hit_type" in row else "N/A"
+                        
+                        if cnt == "0-0" and current_pa_pitches:
+                            # Evaluate previous PA outcome
+                            last_p = current_pa_pitches[-1]
+                            if last_p["result"] == "In Play":
+                                pa_outcomes.append(last_p.get("hit_type", "Out"))
+                            elif last_p["result"] == "Hit By Pitch":
+                                pa_outcomes.append("Hit By Pitch")
+                            else:
+                                pa_outcomes.append("Other / In-Progress")
+                            current_pa_pitches = []
+                        
+                        current_pa_pitches.append(row)
+                        
+                        # Check terminal conditions within the current PA sequence
+                        if res in ["In Play", "Hit By Pitch"]:
+                            pa_outcomes.append(hit_outcome if res == "In Play" else "Hit By Pitch")
+                            current_pa_pitches = []
+                            
+                    if current_pa_pitches:
+                        last_p = current_pa_pitches[-1]
+                        if last_p["result"] == "In Play":
+                            pa_outcomes.append(last_p.get("hit_type", "Out"))
+                        elif last_p["result"] == "Hit By Pitch":
+                            pa_outcomes.append("Hit By Pitch")
+                        else:
+                            pa_outcomes.append("In-Progress At-Bat")
+
+                    if pa_outcomes:
+                        st.write("### 🏆 At-Bat Outcome Summary")
+                        outcome_counts = pd.Series(pa_outcomes).value_counts()
+                        outcome_df = pd.DataFrame({"Outcome": outcome_counts.index, "Count": outcome_counts.values})
+                        st.dataframe(outcome_df, use_container_width=True, hide_index=True)
+
                     hc1, hc2 = st.columns(2)
                     with hc1:
                         h_mix = hitter_matchup_df["pitch_type"].value_counts(normalize=True) * 100
