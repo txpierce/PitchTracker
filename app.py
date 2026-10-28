@@ -32,17 +32,25 @@ st.markdown("""
 }
 .glow-bar-container {
     background-color: #2a2a40;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
-    height: 12px;
+    height: 8px;
     width: 100%;
-    margin-bottom: 16px;
+    margin-top: 4px;
+    margin-bottom: 12px;
 }
 .glow-bar-fill {
     height: 100%;
     background: linear-gradient(90deg, #1c83e1, #00ccff);
-    box-shadow: 0 0 10px #00ccff, 0 0 20px #1c83e1;
-    border-radius: 8px;
+    box-shadow: 0 0 8px #00ccff, 0 0 15px #1c83e1;
+    border-radius: 6px;
+}
+.pitch-card {
+    background-color: #161622;
+    border: 1px solid #2a2a40;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -135,6 +143,49 @@ def render_glowing_metric_cards(series, title_text="0-0 Usage Breakdown"):
             </div>
             """, unsafe_allow_html=True)
 
+def render_clean_advanced_metrics(pitcher_df):
+    st.write("### 🎯 Advanced Metrics Breakdown")
+    if pitcher_df.empty or "pitch_type" not in pitcher_df.columns:
+        st.info("No pitch data available for advanced metrics.")
+        return
+
+    for p_type in pitcher_df["pitch_type"].unique():
+        p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
+        total_p = len(p_sub)
+        called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
+        swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
+        total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+        chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
+        ball_count = len(p_sub[p_sub["result"] == "Ball"])
+        in_play_count = len(p_sub[p_sub["result"] == "In Play"])
+        total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
+        
+        cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
+        whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
+        total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
+
+        st.markdown(f"""
+        <div class="pitch-card">
+            <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
+                ⚾ {p_type} &nbsp;|&nbsp; <span style="color: #a0a0c0; font-size: 13px;">Thrown: {total_p} &bull; Balls: {ball_count} &bull; In Play: {in_play_count} &bull; Chase: {chase_count}</span>
+            </div>
+            <div style="display: flex; gap: 15px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Total Strike %: <b>{total_strike_pct:.1f}%</b> ({total_strikes}/{total_p})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
+                </div>
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Whiff % (Swings): <b>{whiff_pct:.1f}%</b> ({swinging_strikes}/{total_swings})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
+                </div>
+                <div style="flex: 1;">
+                    <span style="font-size: 12px; color: #a0a0c0;">Called Strike %: <b>{cs_pct:.1f}%</b> ({called_strikes}/{total_p})</span>
+                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 # --- MAIN APP MODES ---
 if mode == "Our Pitcher Tracker":
     st.header("📊 Our Pitcher Tracker")
@@ -148,7 +199,6 @@ if mode == "Our Pitcher Tracker":
     
     pitcher_options = existing_pitchers + ["➕ Add New Reliever/Pitcher"]
     
-    # Ensure current session state pitcher is valid in options
     current_default_index = 0
     if st.session_state.selected_our_pitcher in pitcher_options:
         current_default_index = pitcher_options.index(st.session_state.selected_our_pitcher)
@@ -296,31 +346,7 @@ if mode == "Our Pitcher Tracker":
                 else:
                     st.info("No 2-strike counts logged yet.")
 
-                st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-                for p_type in pitcher_df["pitch_type"].unique():
-                    p_sub = pitcher_df[pitcher_df["pitch_type"] == p_type]
-                    total_p = len(p_sub)
-                    called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                    swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                    total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                    ball_count = len(p_sub[p_sub["result"] == "Ball"])
-                    in_play_count = len(p_sub[p_sub["result"] == "In Play"])
-                    total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                    
-                    cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                    whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                    total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
-                    
-                    st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
-                    st.markdown(f"""
-                    * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
-                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
-                    * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
-                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
-                    * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
-                    <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
-                    """, unsafe_allow_html=True)
+                render_clean_advanced_metrics(pitcher_df)
 
                 st.write("### 📊 Pitch Type % Breakdown by Count")
                 st.dataframe(pd.crosstab(pitcher_df["count"], pitcher_df["pitch_type"], normalize="index").mul(100).round(1).astype(str) + '%')
@@ -352,7 +378,6 @@ elif mode == "Our Pitching Coach Dashboard":
             
             total_pitches = len(coach_pitcher_df)
             
-            # --- PITCH SMART REST CALCULATOR HELPER ---
             selected_age_group = st.selectbox("Select Pitcher Age Group (USA Pitch Smart)", [
                 "7–8", "9–10", "11–12", "13–14", "15–16", "17–18", "19–22"
             ], key="pitch_smart_age")
@@ -395,7 +420,7 @@ elif mode == "Our Pitching Coach Dashboard":
                     elif count <= 60: rest = "2 Days Rest (46–60)"
                     elif count <= 80: rest = "3 Days Rest (61–80)"
                     else: rest = "4 Days Rest (81+)"
-                else: # 19–22
+                else:
                     max_p = 120
                     if count <= 30: rest = "0 Days Rest (1–30)"
                     elif count <= 45: rest = "1 Day Rest (31–45)"
@@ -467,33 +492,8 @@ elif mode == "Our Pitching Coach Dashboard":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            for p_type in coach_pitcher_df["pitch_type"].unique():
-                p_sub = coach_pitcher_df[coach_pitcher_df["pitch_type"] == p_type]
-                total_p = len(p_sub)
-                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                ball_count = len(p_sub[p_sub["result"] == "Ball"])
-                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
-                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                
-                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
-                
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
-                st.markdown(f"""
-                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
-                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
-                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
-                """, unsafe_allow_html=True)
+            render_clean_advanced_metrics(coach_pitcher_df)
 
-            # --- INDIVIDUAL HITTER MATCHUP BREAKDOWN WITH SEPARATE TABLES PER PITCH ---
             st.markdown("---")
             st.subheader("👤 Individual Hitter Matchup & History Breakdown")
             
@@ -731,31 +731,7 @@ elif mode == "Opponent Pitcher Scout":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            for p_type in opp_pitcher_df["pitch_type"].unique():
-                p_sub = opp_pitcher_df[opp_pitcher_df["pitch_type"] == p_type]
-                total_p = len(p_sub)
-                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                ball_count = len(p_sub[p_sub["result"] == "Ball"])
-                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
-                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                
-                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
-                
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
-                st.markdown(f"""
-                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
-                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
-                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
-                """, unsafe_allow_html=True)
+            render_clean_advanced_metrics(opp_pitcher_df)
         else:
             st.info("No opponent pitches charted yet.")
     else:
@@ -776,7 +752,6 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             total_deck_pitches = len(deck_pitcher_df)
             st.metric("Total Pitches Charted", total_deck_pitches)
             
-            # --- FULL PITCHER DIAGNOSTICS & METRICS FOR ON-DECK VIEW ---
             col_dm1, col_dm2 = st.columns(2)
             with col_dm1:
                 deck_fp = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
@@ -824,35 +799,10 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             else:
                 st.info("No 2-strike counts logged yet.")
 
-            st.write("### 🎯 Advanced Metrics (Whiff %, Called Strike %, Total Strike %, Chase)")
-            for p_type in deck_pitcher_df["pitch_type"].unique():
-                p_sub = deck_pitcher_df[deck_pitcher_df["pitch_type"] == p_type]
-                total_p = len(p_sub)
-                called_strikes = len(p_sub[p_sub["result"] == "Called Strike"])
-                swinging_strikes = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss"])])
-                total_swings = len(p_sub[p_sub["result"].isin(["Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                chase_count = len(p_sub[p_sub["result"].isin(["Chase Swing & Miss", "Chase Contact / Foul"])])
-                ball_count = len(p_sub[p_sub["result"] == "Ball"])
-                in_play_count = len(p_sub[p_sub["result"] == "In Play"])
-                total_strikes = len(p_sub[p_sub["result"].isin(["Called Strike", "Swinging Strike", "Chase Swing & Miss", "Chase Contact / Foul", "Foul", "In Play"])])
-                
-                cs_pct = (called_strikes / total_p * 100) if total_p > 0 else 0.0
-                whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
-                total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
-                
-                st.markdown(f"**{p_type}** (Total Thrown: {total_p} | Balls: {ball_count} | Ball in Play: {in_play_count} | Chase Count: {chase_count})")
-                st.markdown(f"""
-                * **Total Strike %:** {total_strike_pct:.1f}% ({total_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(total_strike_pct, 2), 100)}%;"></div></div>
-                * **Whiff % (on Swings):** {whiff_pct:.1f}% ({swinging_strikes}/{total_swings})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(whiff_pct, 2), 100)}%;"></div></div>
-                * **Called Strike %:** {cs_pct:.1f}% ({called_strikes}/{total_p})
-                <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
-                """, unsafe_allow_html=True)
+            render_clean_advanced_metrics(deck_pitcher_df)
 
-            # --- INDIVIDUAL HITTER REVIEW & STRATEGIC APPROACH ---
             st.markdown("---")
-            st.subheader("👤 Individual Hitter Matchup & At-Bat Approach")
+            st.subheader("👤 Individual Hitter Review & Strategic Approach")
             
             deck_hitters = list(deck_pitcher_df["batter"].unique()) if "batter" in deck_pitcher_df.columns else []
             deck_hitter_options = deck_hitters if deck_hitters else our_batters_list
