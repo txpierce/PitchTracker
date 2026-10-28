@@ -128,21 +128,6 @@ def render_glowing_bars(series, title_text="Pitch Distribution"):
         </div>
         """, unsafe_allow_html=True)
 
-def render_glowing_metric_cards(series, title_text="0-0 Usage Breakdown"):
-    st.write(f"### {title_text}")
-    if series.empty:
-        st.info("No data available.")
-        return
-    cols = st.columns(min(len(series), 3))
-    for idx, (pitch_type, pct) in enumerate(series.items()):
-        with cols[idx % len(cols)]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>{pitch_type}</h3>
-                <h2>{pct:.1f}%</h2>
-            </div>
-            """, unsafe_allow_html=True)
-
 def render_clean_advanced_metrics(pitcher_df):
     st.write("### 🎯 Advanced Metrics Breakdown")
     if pitcher_df.empty or "pitch_type" not in pitcher_df.columns:
@@ -427,7 +412,7 @@ if mode == "Our Pitcher Tracker":
                     zero_zero = pitcher_df[pitcher_df["count"] == "0-0"]
                     if not zero_zero.empty:
                         zz_mix = zero_zero["pitch_type"].value_counts(normalize=True) * 100
-                        render_glowing_metric_cards(zz_mix, title_text="🎯 0-0 Pitch Usage")
+                        render_glowing_bars(zz_mix, title_text="🎯 0-0 Pitch Usage")
                     else:
                         st.info("No 0-0 pitches logged yet.")
 
@@ -562,7 +547,7 @@ elif mode == "Our Pitching Coach Dashboard":
             with col_y:
                 coach_zz = coach_pitcher_df[coach_pitcher_df["count"] == "0-0"]
                 if not coach_zz.empty:
-                    render_glowing_metric_cards(coach_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                    render_glowing_bars(coach_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
             
@@ -785,7 +770,7 @@ elif mode == "Opponent Pitcher Scout":
             with col_y:
                 opp_zz = opp_pitcher_df[opp_pitcher_df["count"] == "0-0"]
                 if not opp_zz.empty:
-                    render_glowing_metric_cards(opp_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                    render_glowing_bars(opp_zz["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
             
@@ -855,7 +840,7 @@ elif mode == "Hitter On-Deck Cheat Sheet":
             with col_dy:
                 deck_zz_card = deck_pitcher_df[deck_pitcher_df["count"] == "0-0"]
                 if not deck_zz_card.empty:
-                    render_glowing_metric_cards(deck_zz_card["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
+                    render_glowing_bars(deck_zz_card["pitch_type"].value_counts(normalize=True) * 100, title_text="🎯 0-0 Pitch Usage")
                 else:
                     st.info("No 0-0 pitches logged.")
 
