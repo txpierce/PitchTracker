@@ -62,7 +62,8 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- GEMINI CLIENT & STRATEGY HELPER ---
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+# Hardcoded your API key directly here to eliminate key-validation errors
+client = genai.Client(api_key="AIzaSy_PASTE_YOUR_REAL_KEY_RIGHT_HERE")
 
 def get_gemini_dugout_approach(pitcher_name, summary_text, mode_type="hitter"):
     """Sends live pitch summary to Gemini and returns real-time dugout tactics."""
