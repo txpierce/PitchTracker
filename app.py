@@ -63,7 +63,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- GEMINI CLIENT & STRATEGY HELPER ---
 # Your valid Google AI Studio API key is hardcoded here to bypass local secrets caching
-client = genai.Client(api_key="AIzaSyAGQc1_n-fsSnAn5F_2-pXgw_AuBX2ioMzP_QCEOS9ZYPw")
+client = genai.Client()
 
 def get_gemini_dugout_approach(pitcher_name, summary_text, mode_type="hitter"):
     """Sends live pitch summary to Gemini and returns real-time dugout tactics."""
