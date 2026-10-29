@@ -97,16 +97,22 @@ mode = st.sidebar.radio("Select Mode", [
     "Bullpen Charting"
 ], key="main_navigation_radio")
 
-# --- DUAL LINEUP SETUP ---
+# --- DUAL LINEUP SETUP WITH SESSION STATE PERSISTENCE ---
 st.sidebar.markdown("---")
 st.sidebar.header("📋 Lineup Configurations")
 
-default_our_lineup = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
-our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=default_our_lineup, height=120)
+if "our_lineup_text" not in st.session_state:
+    st.session_state.our_lineup_text = "Our Batter 1\nOur Batter 2\nOur Batter 3\nOur Batter 4\nOur Batter 5\nOur Batter 6\nOur Batter 7\nOur Batter 8\nOur Batter 9"
+
+if "opp_lineup_text" not in st.session_state:
+    st.session_state.opp_lineup_text = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
+
+our_lineup_input = st.sidebar.text_area("Our Batting Lineup", value=st.session_state.our_lineup_text, height=120, key="our_lineup_textarea")
+st.session_state.our_lineup_text = our_lineup_input
 our_batters_list = [b.strip() for b in our_lineup_input.split("\n") if b.strip()]
 
-default_opp_lineup = "Opponent Batter 1\nOpponent Batter 2\nOpponent Batter 3\nOpponent Batter 4\nOpponent Batter 5\nOpponent Batter 6\nOpponent Batter 7\nOpponent Batter 8\nOpponent Batter 9"
-opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=default_opp_lineup, height=120)
+opp_lineup_input = st.sidebar.text_area("Opponent Batting Lineup", value=st.session_state.opp_lineup_text, height=120, key="opp_lineup_textarea")
+st.session_state.opp_lineup_text = opp_lineup_input
 opp_batters_list = [b.strip() for b in opp_lineup_input.split("\n") if b.strip()]
 
 # Fetch existing pitch logs from Supabase
