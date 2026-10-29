@@ -154,7 +154,7 @@ def render_glowing_bars(series, title_text="Pitch Distribution"):
         """, unsafe_allow_html=True)
 
 def render_clean_advanced_metrics(pitcher_df):
-    st.write("### 🎯 Advanced Metrics Breakdown")
+    st.write("### 🎯 Advanced Metrics & Batted Ball Breakdown")
     if pitcher_df.empty or "pitch_type" not in pitcher_df.columns:
         st.info("No pitch data available for advanced metrics.")
         return
@@ -179,6 +179,22 @@ def render_clean_advanced_metrics(pitcher_df):
         whiff_pct = (swinging_strikes / total_swings * 100) if total_swings > 0 else 0.0
         total_strike_pct = (total_strikes / total_p * 100) if total_p > 0 else 0.0
 
+        # Batted Ball Profile extraction for this pitch type
+        bip_sub = p_sub[p_sub["result"] == "In Play"] if "result" in p_sub.columns else pd.DataFrame()
+        contact_summary = "None"
+        hit_summary = "None"
+        if not bip_sub.empty:
+            if "contact_type" in bip_sub.columns:
+                c_counts = bip_sub["contact_type"].value_counts()
+                contact_summary = " • ".join([f"{k}: {v}" for k, v in c_counts.items() if k != "N/A"])
+                if not contact_summary:
+                    contact_summary = "Recorded (N/A)"
+            if "hit_type" in bip_sub.columns:
+                h_counts = bip_sub["hit_type"].value_counts()
+                hit_summary = " • ".join([f"{k}: {v}" for k, v in h_counts.items() if k != "N/A"])
+                if not hit_summary:
+                    hit_summary = "Recorded (N/A)"
+
         st.markdown(f"""
         <div class="pitch-card">
             <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 8px;">
@@ -197,6 +213,9 @@ def render_clean_advanced_metrics(pitcher_df):
                     <span style="font-size: 12px; color: #a0a0c0;">Called Strike %: <b>{cs_pct:.1f}%</b> ({called_strikes}/{total_p})</span>
                     <div class="glow-bar-container"><div class="glow-bar-fill" style="width: {min(max(cs_pct, 2), 100)}%;"></div></div>
                 </div>
+            </div>
+            <div style="border-top: 1px solid #2a2a40; padding-top: 6px; margin-top: 6px; font-size: 12px; color: #00ccff;">
+                📊 <b>Batted Ball Profile:</b> Contact Types [{contact_summary}] &bull; Outcomes [{hit_summary}]
             </div>
         </div>
         """, unsafe_allow_html=True)
